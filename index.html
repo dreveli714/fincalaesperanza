@@ -334,14 +334,15 @@ async function borrarReg(store,id){ const r=await get(store,id);
   actualizarSync(); sincronizar(); }
 async function actualizarSync(){ const bar=$('#statusline'),txt=$('#statustext'); const p=await pendientes(); bar.className='statusline';
   if(!online()){ bar.classList.add('off'); txt.textContent=p.length?`Sin señal · ${p.length} por subir`:'Sin señal'; return; }
-  if(p.length){ bar.classList.add('pend'); txt.textContent=META.appsUrl?`${p.length} por subir`:`${p.length} guardados en el teléfono`; } else txt.textContent='Todo guardado'; }
-let sincronizando=false;
+  if(ultimoErrorBajada){ bar.classList.add('off'); txt.textContent='⚠️ No recibe datos · toca aquí'; return; }
+  if(p.length){ bar.classList.add('pend'); txt.textContent=META.appsUrl?`${p.length} por subir`:`${p.length} guardados en el teléfono`; } else txt.textContent='Todo sincronizado'; }
+let sincronizando=false, bajadaCompletaHecha=false;
 async function sincronizar(manual){ if(!META.appsUrl||!online()||sincronizando){ actualizarSync(); return; }
   sincronizando=true;
   try{
     const sub=await subir();
     const baj=await bajar();
-    if(manual){ toast(baj<0?'No se pudo conectar':`Listo · ${sub} subido(s), ${baj} recibido(s)`); }
+    if(manual){ toast(baj<0?(ultimoErrorBajada||'No se pudo conectar'):`Listo · ${sub} subido(s), ${baj} recibido(s)`); }
     else if(baj>0){ toast(`${baj} registro(s) nuevo(s) de otro teléfono`); refrescarVista(); }
   }catch(e){ if(manual) toast('No se pudo sincronizar'); }
   sincronizando=false; actualizarSync(); }
@@ -362,12 +363,21 @@ async function subir(){ let n=0, fallosRed=0;
   }
   return n; }
 
+let ultimoErrorBajada='';
 async function bajar(){
   try{
-    const url=META.appsUrl+'?token='+encodeURIComponent(META.token)+(META.ultimaBajada?('&desde='+META.ultimaBajada):'');
+    // La primera bajada de cada sesión trae TODO: así ningún registro se queda atrás
+    const usarCursor = bajadaCompletaHecha && META.ultimaBajada;
+    const url=META.appsUrl+'?token='+encodeURIComponent(META.token)+(usarCursor?('&desde='+META.ultimaBajada):'');
     const resp=await fetch(url,{method:'GET'});
-    const data=await resp.json();
-    if(!data||!data.ok) return -1;
+    const txt=await resp.text();
+    let data=null; try{ data=JSON.parse(txt); }catch(e){}
+    if(!data){ ultimoErrorBajada = txt.indexOf('Finca La Esperanza')>=0
+        ? 'El script de Google es la versión vieja. Hay que actualizarlo y volver a implementarlo.'
+        : 'Google no devolvió datos. Revisa que el script esté implementado como "Aplicación web" para "Cualquiera".';
+      return -1; }
+    if(!data.ok){ ultimoErrorBajada = data.error==='token' ? 'El token no coincide con el del script.' : ('Error del script: '+data.error); return -1; }
+    ultimoErrorBajada='';
     let n=0;
     for(const store of SYNCST){
       const remotos=data.datos[store]||[];
@@ -381,12 +391,14 @@ async function bajar(){
         fus.sync='ok';
         if(loc && loc.fotoId) fus.fotoId=loc.fotoId; // conservo la foto local si la tengo
         ['cantidad','precio','total','monto','litros','stock'].forEach(k=>{ if(fus[k]!=null&&fus[k]!=='') fus[k]=num(fus[k]); });
+        ['caja','pagado','activo'].forEach(k=>{ if(fus[k]==='TRUE'||fus[k]===true) fus[k]=true; else if(fus[k]===''||fus[k]==='FALSE'||fus[k]==null) fus[k]=false; });
         await put(store,fus); n++;
       }
     }
+    bajadaCompletaHecha=true;
     if(data.servidor){ META.ultimaBajada=data.servidor; await saveMeta(); }
     return n;
-  }catch(e){ return -1; } }
+  }catch(e){ ultimoErrorBajada='No se pudo conectar con Google.'; return -1; } }
 
 function limpiar(r){ const {fotoId,...rest}=r; return rest; }
 function refrescarVista(){ try{ const vistas=['home','animales','analisis','caja','movimientos','inventario']; if(vistas.includes(currentScreen)) show(currentScreen); }catch(e){} }
@@ -413,7 +425,7 @@ const TABS=[['home','Inicio','home'],['animales','Animales','cow'],['finanzas','
 const TAB_OF={home:'home',animales:'animales',animal:'animales',leche:'animales',finanzas:'finanzas',venta:'finanzas',gasto:'finanzas',trabajador:'finanzas',produccion:'finanzas',movimientos:'finanzas',caja:'finanzas',analisis:'analisis',mas:'mas',inventario:'mas',semana:'mas',reportes:'mas',backup:'mas',config:'mas'};
 function renderTabbar(){ const tb=$('#tabbar'); tb.innerHTML=''; TABS.forEach(([scr,label,ico])=>{ const b=h(`<button data-tab="${scr}">${icon(ico)}<span>${label}</span></button>`); b.onclick=()=>show(scr); tb.appendChild(b); }); }
 function highlightTab(){ const a=TAB_OF[currentScreen]||'home'; document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===a)); }
-function show(name,arg){ currentScreen=name; view.innerHTML=''; const el=screens[name]?screens[name](arg):screens.home(); view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){} }
+function show(name,arg){ if(name!==currentScreen) sincronizar(); currentScreen=name; view.innerHTML=''; const el=screens[name]?screens[name](arg):screens.home(); view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){} }
 $('#gearbtn').innerHTML=icon('gear'); $('#gearbtn').onclick=()=>show('config');
 
 screens.home = () => {
@@ -1195,6 +1207,55 @@ async function importarJSON(e){ const file=e.target.files[0]; if(!file)return; i
     toast('Copia importada'); actualizarSync(); show('home'); }
   catch(err){ toast('Archivo no válido'); } }
 
+
+async function diagnostico(cont){
+  cont.innerHTML=''; const card=h('<div class="card"><h3>DIAGNÓSTICO</h3></div>'); cont.appendChild(card);
+  const paso=(t,estado,extra)=>{ const col=estado==='ok'?'var(--accent)':estado==='mal'?'var(--danger)':'var(--secondary)';
+    card.appendChild(h(`<div class="line"><span class="k">${t}</span><span class="v" style="color:${col}">${estado==='ok'?'✓':estado==='mal'?'✗':'…'}</span></div>`));
+    if(extra) card.appendChild(h(`<p class="hint" style="margin:2px 4px 8px">${extra}</p>`)); };
+
+  if(!online()){ paso('Internet','mal','El teléfono no tiene conexión.'); return; }
+  paso('Internet','ok');
+  if(!META.appsUrl){ paso('Dirección del script','mal','Está vacía. Pégala arriba y guarda.'); return; }
+  if(META.appsUrl.indexOf('/exec')<0){ paso('Dirección del script','mal','Debe terminar en /exec. La que tienes no.'); return; }
+  paso('Dirección del script','ok');
+
+  let txt='';
+  try{
+    const resp=await fetch(META.appsUrl+'?token='+encodeURIComponent(META.token),{method:'GET'});
+    txt=await resp.text();
+  }catch(e){ paso('Google responde','mal','No se pudo conectar. Puede ser la señal, o el script no está publicado para "Cualquiera".'); return; }
+  paso('Google responde','ok');
+
+  let data=null; try{ data=JSON.parse(txt); }catch(e){}
+  if(!data){
+    if(txt.indexOf('Finca La Esperanza')>=0){
+      paso('Versión del script','mal','<b>Este es el problema.</b> El script de Google todavía es la versión vieja: recibe datos pero no los entrega. Hay que pegar el código nuevo y volver a implementarlo (Implementar › Gestionar implementaciones › ✏️ › Nueva versión).');
+    } else {
+      paso('Versión del script','mal','Google devolvió algo que no se entiende. Revisa que esté implementado como "Aplicación web", ejecutando "como Yo" y con acceso para "Cualquiera".');
+    }
+    return;
+  }
+  paso('Versión del script','ok');
+  if(!data.ok){
+    paso('Token','mal', data.error==='token' ? 'El token de la app no coincide con el del script. En el script busca la línea <b>const TOKEN</b> y ponle el mismo de arriba.' : 'Error: '+data.error);
+    return;
+  }
+  paso('Token','ok');
+
+  let totalServidor=0; const detalle=[];
+  for(const st of SYNCST){ const n=(data.datos[st]||[]).length; totalServidor+=n; if(n) detalle.push(`${st}: ${n}`); }
+  let totalLocal=0; for(const st of SYNCST) totalLocal+=(await vivos(st)).length;
+  paso('Datos en Google','ok', totalServidor? detalle.join(' · ') : 'La hoja está vacía todavía.');
+  card.appendChild(h(`<div class="line"><span class="k">En este teléfono</span><span class="v">${totalLocal}</span></div>`));
+  const pend=(await pendientes()).length;
+  card.appendChild(h(`<div class="line"><span class="k">Sin subir</span><span class="v" style="color:${pend?'var(--gold)':'var(--accent)'}">${pend}</span></div>`));
+  cont.appendChild(h(`<p class="hint"><b>Todo bien.</b> Si aún ves distinto en otro teléfono, toca "Sincronizar ahora" en los dos.</p>`));
+  const b=h(`<button class="save" style="margin-top:8px">Sincronizar ahora</button>`);
+  b.onclick=async()=>{ b.textContent='Sincronizando…'; await sincronizar(true); show('config'); };
+  cont.appendChild(b);
+}
+
 screens.config = () => {
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div><h1 class="ltitle">Ajustes</h1>
     <div class="ghead">Conexión con Google</div>
@@ -1204,6 +1265,9 @@ screens.config = () => {
     <div class="field"><label>Enlace al Google Sheet</label><input type="text" id="sheet" placeholder="https://docs.google.com/spreadsheets/…" value="${META.sheetUrl||''}"></div>
     <button class="save" id="guardar">Guardar ajustes</button>
     <button class="btn-outline" id="probar" style="margin-top:12px">${icon('share')} Sincronizar ahora</button>
+    <button class="btn-outline" id="diag">${icon('gear')} Probar conexión (diagnóstico)</button>
+    <button class="btn-outline" id="rebajar">${icon('save')} Volver a bajar todo de Google</button>
+    <div id="diagres"></div>
     <p class="hint">La app se sincroniza sola al abrirla y cada 2 minutos. También puedes tocar la barra verde de arriba.</p>
     <div class="ghead">Varios teléfonos</div>
     <p class="hint" style="margin-top:2px">Para usar la app en otro teléfono: abre el mismo enlace ahí, revisa que tenga esta misma URL y token, y toca "Sincronizar ahora". Bajará todo lo registrado.</p>
@@ -1214,15 +1278,18 @@ screens.config = () => {
   (async()=>{ let n=0; for(const s of SYNCST) n+=(await vivos(s)).length; const nc=el.querySelector('#ncount'); if(nc)nc.textContent=n; })();
   el.querySelector('#guardar').onclick=async()=>{ META.appsUrl=el.querySelector('#url').value.trim(); META.token=el.querySelector('#token').value.trim(); META.sheetUrl=el.querySelector('#sheet').value.trim(); await saveMeta(); toast('Ajustes guardados'); actualizarSync(); sincronizar(); };
   el.querySelector('#probar').onclick=()=>sincronizar(true);
+  el.querySelector('#diag').onclick=()=>diagnostico(el.querySelector('#diagres'));
+  el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Bajando…';
+    META.ultimaBajada=0; bajadaCompletaHecha=false; await saveMeta(); await sincronizar(true); show('config'); };
   return el;
 };
 
 window.addEventListener('online',()=>sincronizar()); window.addEventListener('offline',actualizarSync);
 // sincroniza sola: al abrir, al volver a la app, y cada 2 minutos
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) sincronizar(); });
-setInterval(()=>{ if(!document.hidden) sincronizar(); }, 120000);
+setInterval(()=>{ if(!document.hidden) sincronizar(); }, 30000);
 $('#statusline').style.cursor='pointer';
-$('#statusline').onclick=()=>{ toast('Sincronizando…'); sincronizar(true); };
+$('#statusline').onclick=()=>{ if(ultimoErrorBajada){ show('config'); toast('Revisa la conexión'); return; } toast('Sincronizando…'); sincronizar(true); };
 (async function init(){
   try{ await openDB(); }catch(e){ useMem=true; }
   try{ await loadMeta(); }catch(e){ META=Object.assign({},DEFAULTS); }
