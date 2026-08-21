@@ -3,7 +3,7 @@
    Los datos NO se guardan aquí (eso lo hace IndexedDB en la app);
    esto solo hace que la pantalla cargue estando offline. */
 
-const CACHE = 'finca-esperanza-v7';
+const CACHE = 'finca-esperanza-v10';
 const ASSETS = [
   './',
   './index.html',
