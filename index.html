@@ -157,6 +157,25 @@
   #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(16px);background:rgba(28,28,30,.95);color:#fff;padding:13px 18px;border-radius:14px;font-weight:500;display:flex;align-items:center;gap:16px;opacity:0;pointer-events:none;transition:.28s;z-index:70;max-width:90%;box-shadow:0 8px 26px rgba(0,0,0,.28);}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;} #toast button{background:none;color:#5AC8FA;border:none;font-weight:600;cursor:pointer;font-size:1rem;padding:0;}
 
+  .swrow{display:flex;align-items:center;gap:13px;background:var(--surface);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow-card);min-height:var(--tap);}
+  .swrow .gtx b{font-weight:600;font-size:1.02rem;display:block;} .swrow .gtx small{color:var(--secondary);font-size:.84rem;}
+  .sw{position:relative;width:52px;height:31px;border-radius:999px;background:#E3E3E8;border:none;flex:0 0 auto;cursor:pointer;transition:background .2s;}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s;}
+  .sw.on{background:var(--accent);} .sw.on::after{transform:translateX(21px);}
+  .cajasaldo{background:var(--surface);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-card);text-align:center;margin-bottom:16px;}
+  .cajasaldo .kl{font-size:.82rem;color:var(--secondary);font-weight:600;}
+  .cajasaldo .kv{font-size:2.4rem;font-weight:800;letter-spacing:-.8px;font-variant-numeric:tabular-nums;line-height:1.1;}
+  .mov-caja{display:flex;align-items:center;gap:12px;padding:12px 14px;position:relative;background:var(--surface);}
+  .mov-caja+.mov-caja::before{content:"";position:absolute;top:0;left:14px;right:0;height:.5px;background:var(--separator);}
+  .avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:#E7E7EC;box-shadow:0 0 0 .5px var(--separator);}
+  .avatar-ph{width:44px;height:44px;border-radius:50%;flex:0 0 auto;background:#E7E7EC;display:flex;align-items:center;justify-content:center;color:var(--slate);}
+  .avatar-ph .ic{width:26px;height:26px;}
+  .hero-foto{width:100%;max-height:300px;object-fit:cover;border-radius:var(--radius);display:block;box-shadow:var(--shadow-card);margin-bottom:16px;}
+  .foto-circ{display:flex;flex-direction:column;align-items:center;gap:10px;margin:6px 0 4px;}
+  .foto-circ .big{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#E7E7EC;box-shadow:0 0 0 .5px var(--separator);}
+  .foto-circ .bigph{width:120px;height:120px;border-radius:50%;background:#E7E7EC;display:flex;align-items:center;justify-content:center;color:var(--slate);}
+  .foto-circ .bigph .ic{width:56px;height:56px;}
+  .foto-circ .lnk{background:none;border:none;color:var(--accent);font-weight:600;font-size:.98rem;cursor:pointer;padding:4px;}
   #printarea{display:none;}
   @media print{ body{background:#fff;} .app,#toast,.tabbar,.modal-ov{display:none !important;} #printarea{display:block !important;} }
 </style>
@@ -221,14 +240,14 @@ const DEFAULTS={
   token:'1108', sheetUrl:''
 };
 let META=null;
-const STORES=['registros','produccion','animales','leche','salud','inventario','fotos','meta'];
+const STORES=['registros','produccion','animales','leche','salud','inventario','caja','fotos','meta'];
 
 let db=null, mem={}, useMem=false;
 function M(s){ return mem[s]||(mem[s]=new Map()); }
 function openDB(){ return new Promise((res)=>{ let done=false; const finish=()=>{ if(!done){done=true;res();} };
   const t=setTimeout(()=>{ useMem=true; finish(); },1500);
   try{ if(!('indexedDB' in window)||!window.indexedDB){ useMem=true; clearTimeout(t); return finish(); }
-    const rq=indexedDB.open('finca-esperanza',2);
+    const rq=indexedDB.open('finca-esperanza',3);
     rq.onupgradeneeded=e=>{ const d=e.target.result;
       STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:s==='meta'?'k':'id'}); }); };
     rq.onsuccess=e=>{ db=e.target.result; clearTimeout(t); finish(); };
@@ -277,7 +296,7 @@ function blob2b64(b){ return new Promise(res=>{ const fr=new FileReader(); fr.on
 function b642blob(durl){ const [m,b64]=durl.split(','); const mime=(m.match(/:(.*?);/)||[])[1]||'image/jpeg'; const bin=atob(b64); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i); return new Blob([arr],{type:mime}); }
 
 function online(){ return navigator.onLine; }
-async function pendientes(){ let p=[]; for(const s of ['registros','produccion','animales','leche','salud','inventario']){ const items=await all(s); p=p.concat(items.filter(r=>r.sync!=='ok').map(r=>({store:s,r}))); } return p; }
+async function pendientes(){ let p=[]; for(const s of ['registros','produccion','animales','leche','salud','inventario','caja']){ const items=await all(s); p=p.concat(items.filter(r=>r.sync!=='ok').map(r=>({store:s,r}))); } return p; }
 async function actualizarSync(){ const bar=$('#statusline'),txt=$('#statustext'); const p=await pendientes(); bar.className='statusline';
   if(!online()){ bar.classList.add('off'); txt.textContent=p.length?`Sin señal · ${p.length} por subir`:'Sin señal'; return; }
   if(p.length){ bar.classList.add('pend'); txt.textContent=META.appsUrl?`${p.length} por subir`:`${p.length} guardados en el teléfono`; } else txt.textContent='Todo guardado'; }
@@ -307,7 +326,7 @@ function askText(title,label,val,cb){ const body=h(`<div class="field"><label>${
 
 const screens={}; let currentScreen='home';
 const TABS=[['home','Inicio','home'],['animales','Animales','cow'],['finanzas','Finanzas','coin'],['analisis','Análisis','chart'],['mas','Más','more']];
-const TAB_OF={home:'home',animales:'animales',animal:'animales',leche:'animales',finanzas:'finanzas',venta:'finanzas',gasto:'finanzas',trabajador:'finanzas',produccion:'finanzas',movimientos:'finanzas',analisis:'analisis',mas:'mas',inventario:'mas',semana:'mas',reportes:'mas',backup:'mas',config:'mas'};
+const TAB_OF={home:'home',animales:'animales',animal:'animales',leche:'animales',finanzas:'finanzas',venta:'finanzas',gasto:'finanzas',trabajador:'finanzas',produccion:'finanzas',movimientos:'finanzas',caja:'finanzas',analisis:'analisis',mas:'mas',inventario:'mas',semana:'mas',reportes:'mas',backup:'mas',config:'mas'};
 function renderTabbar(){ const tb=$('#tabbar'); tb.innerHTML=''; TABS.forEach(([scr,label,ico])=>{ const b=h(`<button data-tab="${scr}">${icon(ico)}<span>${label}</span></button>`); b.onclick=()=>show(scr); tb.appendChild(b); }); }
 function highlightTab(){ const a=TAB_OF[currentScreen]||'home'; document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===a)); }
 function show(name,arg){ currentScreen=name; view.innerHTML=''; const el=screens[name]?screens[name](arg):screens.home(); view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){} }
@@ -318,6 +337,7 @@ screens.home = () => {
   (async()=>{
     const ym=ymActual(); const dash=el.querySelector('#dash');
     const regs=await all('registros'), leche=await all('leche'), animales=await all('animales'), inv=await all('inventario');
+    const salCaja=await saldoCaja();
     const mesReg=regs.filter(r=>ymDe(r.fecha)===ym);
     let ingr=0,gast=0,jornales=0;
     mesReg.forEach(r=>{ if(r.categoria==='Ingreso')ingr+=r.total; else if(r.categoria==='Egreso'){gast+=r.total; if(r.tipo==='Trabajador')jornales+=r.cantidad;} });
@@ -330,6 +350,7 @@ screens.home = () => {
     if(medVence.length) alertas+=`<div class="alert dgr">${icon('box')}<div>${medVence.length} producto(s) del inventario vencido(s) o por vencer.</div></div>`;
     const parto=animales.filter(a=>a.proxParto&&diasEntre(hoy,a.proxParto)>=0&&diasEntre(hoy,a.proxParto)<=15);
     if(parto.length) alertas+=`<div class="alert">${icon('cow')}<div>${parto.length} vaca(s) próxima(s) a parir (15 días).</div></div>`;
+    if(salCaja<=0){ const hayMov=(await all('caja')).length; if(hayMov) alertas+=`<div class="alert${salCaja<0?' dgr':''}">${icon('coin')}<div>Caja chica ${salCaja<0?'en negativo ('+money(salCaja)+')':'sin saldo'}. Toca Finanzas › Caja chica para recargar.</div></div>`; }
     dash.innerHTML=`
       <div class="ghead" style="margin-top:0">${ymLabel(ym)}</div>
       <div class="kpi-grid">
@@ -340,6 +361,7 @@ screens.home = () => {
         <div class="kpi"><div class="kl">Cacao vendido</div><div class="kv">${cacaoVend} lb</div></div>
         <div class="kpi"><div class="kl">Jornales</div><div class="kv">${jornales}</div></div>
         <div class="kpi"><div class="kl">Vacas</div><div class="kv">${vacas}</div></div>
+        <div class="kpi"><div class="kl">Caja chica</div><div class="kv ${salCaja<0?'neg':''}">${money(salCaja)}</div></div>
       </div>
       ${alertas?`<div class="ghead">Alertas</div>${alertas}`:''}
       <div class="ghead">Registrar rápido</div>
@@ -350,6 +372,7 @@ screens.home = () => {
         <button class="qbtn" data-go="leche"><span class="qi" style="background:var(--navy)">${icon('milk')}</span>Leche</button>
         <button class="qbtn" data-go="trabajador"><span class="qi" style="background:var(--accent)">${icon('farmer')}</span>Trabajador</button>
         <button class="qbtn" data-go="semana"><span class="qi" style="background:var(--slate)">${icon('calendar')}</span>Semana</button>
+        <button class="qbtn" data-go="caja"><span class="qi" style="background:var(--navy)">${icon('coin')}</span>Caja chica</button>
       </div>`;
     dash.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
   })();
@@ -380,8 +403,9 @@ screens.finanzas = () => {
       <button class="grow tap" data-go="produccion">${tile('leaf','var(--accent)')}<span class="gtx"><b>Producción</b><small>Lo cosechado (aparte de venta)</small></span><span class="gchev">${icon('chevron')}</span></button>
       <button class="grow tap" data-go="trabajador">${tile('farmer','var(--accent)')}<span class="gtx"><b>Trabajador</b><small>Jornal, guadaña, rodeo</small></span><span class="gchev">${icon('chevron')}</span></button>
     </div>
-    <div class="ghead">Historial</div>
+    <div class="ghead">Caja e historial</div>
     <div class="lgroup inset">
+      <button class="grow tap" data-go="caja">${tile('coin','var(--navy)')}<span class="gtx"><b>Caja chica</b><small>Plata de Washington · saldo</small></span><span class="gchev">${icon('chevron')}</span></button>
       <button class="grow tap" data-go="movimientos">${tile('edit','var(--slate)')}<span class="gtx"><b>Ver movimientos</b><small>Corregir o eliminar</small></span><span class="gchev">${icon('chevron')}</span></button>
     </div></section>`);
   el.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
@@ -418,22 +442,29 @@ screens.venta = () => {
 };
 
 screens.gasto = () => {
-  const st={tipo:META.gastos[0],fecha:hoyISO(),fotoBlob:null};
+  const st={tipo:META.gastos[0],fecha:hoyISO(),fotoBlob:null,caja:false};
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
     <h1 class="ltitle">Gasto</h1>
     <div class="field"><label>Tipo de gasto</label><div id="tipo"></div></div>
     <div class="field"><label>Detalle</label><input type="text" id="detalle" placeholder="Ej: 1 rollo de alambre de 50 m"></div>
     <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${st.fecha}"></div>
     <div class="field"><label>Costo total</label><input type="text" id="costo" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field"><label>Origen de la plata</label>
+      <div class="swrow"><span class="gtx"><b>Salió de caja chica</b><small id="swsub">Descuenta del saldo de Washington</small></span><button type="button" class="sw" id="swcaja" aria-label="Caja chica"></button></div></div>
     <div class="field"><label>Comprobante <span class="soft">· opcional</span></label><div id="foto"></div></div>
     <button class="save rust" id="save">Guardar gasto</button></section>`);
   el.querySelector('.back').onclick=()=>show('finanzas'); el.querySelector('#foto').appendChild(fotoField(st));
   function refreshTipo(){ const c=el.querySelector('#tipo'); c.innerHTML=''; c.appendChild(chipGroup(META.gastos,st.tipo,v=>st.tipo=v,{onAdd:v=>{ if(!META.gastos.includes(v)){META.gastos.push(v);saveMeta();} st.tipo=v; refreshTipo(); }})); }
   refreshTipo(); el.querySelector('#fecha').onchange=e=>st.fecha=e.target.value;
+  const sw=el.querySelector('#swcaja');
+  (async()=>{ const sal=await saldoCaja(); el.querySelector('#swsub').textContent=`Saldo actual de caja chica: ${money(sal)}`; })();
+  sw.onclick=()=>{ st.caja=!st.caja; sw.classList.toggle('on',st.caja); };
   el.querySelector('#save').onclick=async()=>{ const costo=num(el.querySelector('#costo').value); if(costo<=0){ toast('Falta el costo'); return; }
     const detalle=el.querySelector('#detalle').value.trim()||st.tipo; let fotoId=null; if(st.fotoBlob){ fotoId=nuevoId(); await put('fotos',{id:fotoId,blob:st.fotoBlob}); }
-    const reg={id:nuevoId(),fecha:st.fecha,tipo:'Egreso',nombreDesc:st.tipo,detalle,cantidad:1,unidad:'',precio:costo,total:costo,categoria:'Egreso',comprador:'',notas:'',semana:semanaDe(st.fecha),fotoId,comprobanteUrl:'',sync:'pend',creado:Date.now()};
-    await put('registros',reg); doneToast(`Gasto guardado: ${money(costo)}`,'registros',reg); };
+    const reg={id:nuevoId(),fecha:st.fecha,tipo:'Egreso',nombreDesc:st.tipo,detalle,cantidad:1,unidad:'',precio:costo,total:costo,categoria:'Egreso',caja:st.caja,comprador:'',notas:'',semana:semanaDe(st.fecha),fotoId,comprobanteUrl:'',sync:'pend',creado:Date.now()};
+    await put('registros',reg);
+    if(st.caja){ const sal=await saldoCaja(); doneToast(`Gasto guardado. Queda ${money(sal)} en caja chica`,'registros',reg); }
+    else doneToast(`Gasto guardado: ${money(costo)}`,'registros',reg); };
   return el;
 };
 
@@ -509,6 +540,59 @@ screens.produccion = () => {
 function doneToast(msg,store,reg){ toast(msg, async()=>{ await del(store,reg.id); if(reg.fotoId) await del('fotos',reg.fotoId); actualizarSync(); });
   show(TAB_OF[currentScreen]==='finanzas'?'finanzas':'home'); actualizarSync(); sincronizar(); }
 
+
+async function saldoCaja(){ const rec=await all('caja'); const regs=await all('registros');
+  const entra=rec.reduce((t,r)=>t+num(r.monto),0);
+  const sale=regs.filter(r=>r.caja===true&&r.categoria==='Egreso').reduce((t,r)=>t+num(r.total),0);
+  return Math.round((entra-sale)*100)/100; }
+
+screens.caja = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Caja chica</h1>
+    <p class="lsub">Plata entregada a Washington</p>
+    <div id="saldo"></div>
+    <button class="save" id="recargar">${icon('plus')} Entregar plata (recargar)</button>
+    <button class="btn-outline" id="gastar" style="margin-top:12px">${icon('receipt')} Registrar un gasto de la caja</button>
+    <div class="ghead">Movimientos</div><div id="lista"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas');
+  el.querySelector('#gastar').onclick=()=>show('gasto');
+  el.querySelector('#recargar').onclick=()=>recargarCaja();
+  (async()=>{
+    const sal=await saldoCaja();
+    el.querySelector('#saldo').appendChild(h(`<div class="cajasaldo"><div class="kl">SALDO DISPONIBLE</div><div class="kv ${sal>0?'pos':sal<0?'neg':''}">${money(sal)}</div></div>`));
+    if(sal<0) el.querySelector('#saldo').appendChild(h(`<div class="alert dgr">${icon('receipt')}<div>Se gastó más de lo entregado. Registra una recarga.</div></div>`));
+    const rec=await all('caja'); const regs=(await all('registros')).filter(r=>r.caja===true&&r.categoria==='Egreso');
+    const movs=rec.map(r=>({fecha:r.fecha,texto:r.nota||'Entrega de plata',monto:num(r.monto),tipo:'in',id:r.id,store:'caja',creado:r.creado||0}))
+      .concat(regs.map(r=>({fecha:r.fecha,texto:r.nombreDesc+(r.detalle&&r.detalle!==r.nombreDesc?' · '+r.detalle:''),monto:-num(r.total),tipo:'out',id:r.id,store:'registros',creado:r.creado||0})))
+      .sort((a,b)=>{ if(a.fecha!==b.fecha) return b.fecha.localeCompare(a.fecha);
+        if(a.tipo!==b.tipo) return a.tipo==='in'?1:-1;
+        return (b.creado||0)-(a.creado||0); });
+    const lista=el.querySelector('#lista');
+    if(!movs.length){ lista.appendChild(h(`<div class="empty">${icon('coin')}<div>Sin movimientos.<br>Toca "Entregar plata" para empezar.</div></div>`)); return; }
+    // saldo corriente calculado de viejo a nuevo
+    const asc=[...movs].reverse(); let run=0; const saldos={};
+    asc.forEach(m=>{ run=Math.round((run+m.monto)*100)/100; saldos[m.store+m.id]=run; });
+    const g=h('<div class="lgroup"></div>');
+    movs.forEach(m=>{ const row=h(`<div class="mov-caja"><span class="rdot ${m.tipo==='in'?'ing':'egr'}"></span><span class="gtx"><b>${m.texto}</b><small>${m.fecha} · queda ${money(saldos[m.store+m.id])}</small></span><span class="rec-amt ${m.tipo==='in'?'pos':'neg'}">${m.monto>=0?'+':'−'}${money(Math.abs(m.monto))}</span></div>`);
+      if(m.store==='caja'){ const x=h(`<button style="background:none;border:none;color:var(--danger);font-size:1.05rem;cursor:pointer;padding:0 2px">✕</button>`);
+        x.onclick=async()=>{ if(!confirm('¿Eliminar esta entrega?'))return; await del('caja',m.id); toast('Entrega eliminada'); show('caja'); }; row.appendChild(x); }
+      g.appendChild(row); });
+    lista.appendChild(g);
+  })();
+  return el;
+};
+function recargarCaja(){
+  const body=h(`<div>
+    <div class="field"><label>Monto entregado</label><input type="text" id="monto" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${hoyISO()}"></div>
+    <div class="field"><label>Nota <span class="soft">· opcional</span></label><input type="text" id="nota" placeholder="Ej: entrega semanal"></div>
+    <p class="hint">Esto no es un gasto: solo pasa la plata a la caja. El gasto se cuenta cuando se usa.</p></div>`);
+  openModal('Entregar plata',body,{okText:'Guardar entrega',onOk:async close=>{
+    const m=num(body.querySelector('#monto').value); if(m<=0){ toast('Falta el monto'); return; }
+    const reg={id:nuevoId(),fecha:body.querySelector('#fecha').value,monto:m,nota:body.querySelector('#nota').value.trim(),destino:'Washington',semana:semanaDe(body.querySelector('#fecha').value),sync:'pend',creado:Date.now()};
+    await put('caja',reg); const sal=await saldoCaja(); toast(`Entrega guardada. Saldo: ${money(sal)}`); actualizarSync(); sincronizar(); close(); show('caja'); }});
+}
+
 screens.movimientos = () => {
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div><h1 class="ltitle">Movimientos</h1><div id="lista"></div></section>`);
   el.querySelector('.back').onclick=()=>show('finanzas');
@@ -559,7 +643,8 @@ screens.animales = () => {
     if(!animales.length){ lista.appendChild(h(`<div class="empty">${icon('cow')}<div>Aún no hay animales.<br>Toca "+ Agregar" para registrar la primera vaca.</div></div>`)); }
     else{ const g=h('<div class="lgroup inset"></div>');
       animales.forEach(a=>{ const bcls=a.estado==='Gestante'?'b-gold':a.estado==='Lactando'?'b-green':'b-slate';
-        const item=h(`<button class="grow tap">${tile('cow','var(--slate)')}<span class="gtx"><b>${a.nombre||'Sin nombre'}</b><small>${a.raza||''}${a.sexo?' · '+a.sexo:''}</small></span><span class="badge-s ${bcls}">${a.estado||'—'}</span></button>`);
+        const item=h(`<button class="grow tap"><span class="avatar-ph">${icon('cow')}</span><span class="gtx"><b>${a.nombre||'Sin nombre'}</b><small>${a.raza||''}${a.sexo?' · '+a.sexo:''}</small></span><span class="badge-s ${bcls}">${a.estado||'—'}</span></button>`);
+        if(a.fotoId){ (async()=>{ const f=await get('fotos',a.fotoId); if(f&&f.blob){ const img=h(`<img class="avatar" alt="" src="${blobURL(f.blob)}">`); const ph=item.querySelector('.avatar-ph'); if(ph)ph.replaceWith(img); } })(); }
         item.onclick=()=>detalleAnimal(a); g.appendChild(item); });
       lista.appendChild(g); }
     const leche=await all('leche'); const ym=ymActual(); const litrosMes=leche.filter(r=>ymDe(r.fecha)===ym).reduce((s,r)=>s+num(r.litros),0);
@@ -571,8 +656,10 @@ screens.animales = () => {
   return el;
 };
 function editarAnimal(a){
-  const isNew=!a; a=a||{id:nuevoId(),nombre:'',sexo:'Hembra',raza:'Mestiza',nacimiento:'',estado:'Lactando',ultimoParto:'',proxParto:'',notas:'',activo:true,sync:'pend',creado:Date.now()};
+  const isNew=!a; a=a||{id:nuevoId(),nombre:'',sexo:'Hembra',raza:'Mestiza',nacimiento:'',estado:'Lactando',ultimoParto:'',proxParto:'',notas:'',activo:true,fotoId:null,sync:'pend',creado:Date.now()};
+  const st={fotoBlob:null,quitar:false};
   const body=h(`<div>
+    <div class="foto-circ"><span class="bigph" id="fotoslot">${icon('cow')}</span><button type="button" class="lnk" id="fotolnk">Agregar foto</button><input type="file" accept="image/*" hidden id="fotoinp"></div>
     <div class="field"><label>Nombre o número</label><input type="text" id="nombre" placeholder="Ej: Vaca 001 / Lucera"></div>
     <div class="row2"><div class="field"><label>Sexo</label><select id="sexo">${opts(['Hembra','Macho'],a.sexo)}</select></div>
       <div class="field"><label>Raza</label><select id="raza">${opts(RAZAS,a.raza)}</select></div></div>
@@ -582,15 +669,25 @@ function editarAnimal(a){
       <div class="field"><label>Próximo parto</label><input type="date" id="pp" value="${a.proxParto||''}"></div></div>
     <div class="field"><label>Notas</label><input type="text" id="notas" placeholder="Observaciones"></div></div>`);
   body.querySelector('#nombre').value=a.nombre||''; body.querySelector('#notas').value=a.notas||'';
+  let slot=body.querySelector('#fotoslot'); const lnk=body.querySelector('#fotolnk'), inp=body.querySelector('#fotoinp');
+  function pintarFoto(src){ if(src){ const img=h(`<img class="big" alt="" src="${src}">`); slot.replaceWith(img); slot=img; lnk.textContent='Cambiar foto'; }
+    else { const ph=h(`<span class="bigph">${icon('cow')}</span>`); slot.replaceWith(ph); slot=ph; lnk.textContent='Agregar foto'; } }
+  if(a.fotoId){ (async()=>{ const f=await get('fotos',a.fotoId); if(f&&f.blob) pintarFoto(blobURL(f.blob)); })(); }
+  lnk.onclick=()=>inp.click();
+  inp.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; try{ st.fotoBlob=await comprimir(f,900,0.72); }catch{ st.fotoBlob=f; } st.quitar=false; pintarFoto(blobURL(st.fotoBlob)); };
   openModal(isNew?'Nuevo animal':'Editar animal',body,{onOk:async close=>{
     a.nombre=body.querySelector('#nombre').value.trim(); a.sexo=body.querySelector('#sexo').value; a.raza=body.querySelector('#raza').value;
     a.nacimiento=body.querySelector('#nac').value; a.estado=body.querySelector('#estado').value; a.ultimoParto=body.querySelector('#up').value;
     a.proxParto=body.querySelector('#pp').value; a.notas=body.querySelector('#notas').value.trim(); a.sync='pend';
-    if(!a.nombre){ toast('Falta el nombre'); return; } await put('animales',a); toast(isNew?'Animal agregado':'Animal actualizado'); actualizarSync(); sincronizar(); close(); if(currentScreen==='animales')show('animales'); else detalleAnimal(a); }});
+    if(!a.nombre){ toast('Falta el nombre'); return; }
+    if(st.fotoBlob){ const fid=a.fotoId||nuevoId(); await put('fotos',{id:fid,blob:st.fotoBlob}); a.fotoId=fid; }
+    await put('animales',a); toast(isNew?'Animal agregado':'Animal actualizado'); actualizarSync(); sincronizar(); close(); if(currentScreen==='animales')show('animales'); else detalleAnimal(a); }});
 }
 async function detalleAnimal(a){
   const salud=(await all('salud')).filter(s=>s.animalId===a.id).sort((x,y)=>y.fecha.localeCompare(x.fecha));
+  const fotoAn=a.fotoId?await get('fotos',a.fotoId):null;
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Animales</button></div>
+    ${fotoAn&&fotoAn.blob?`<img class="hero-foto" alt="${a.nombre||''}" src="${blobURL(fotoAn.blob)}">`:''}
     <h1 class="ltitle">${a.nombre||'Animal'}</h1>
     <div class="card">
       <div class="line"><span class="k">Sexo</span><span class="v">${a.sexo||'—'}</span></div>
@@ -608,11 +705,18 @@ async function detalleAnimal(a){
   el.querySelector('.back').onclick=()=>show('animales');
   el.querySelector('#edit').onclick=()=>editarAnimal(a);
   el.querySelector('#addsalud').onclick=()=>agregarSalud(a);
+  if(!(fotoAn&&fotoAn.blob)){ const bf=h(`<button class="btn-outline">${icon('gallery')} Agregar foto de la vaca</button>`);
+    const fi=h('<input type="file" accept="image/*" hidden>');
+    bf.onclick=()=>fi.click();
+    fi.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; let b; try{ b=await comprimir(f,900,0.72); }catch{ b=f; }
+      const fid=a.fotoId||nuevoId(); await put('fotos',{id:fid,blob:b}); a.fotoId=fid; a.sync='pend'; await put('animales',a);
+      toast('Foto agregada'); actualizarSync(); sincronizar(); detalleAnimal(a); };
+    el.querySelector('#edit').after(fi); el.querySelector('#edit').after(bf); }
   const sl=el.querySelector('#saludlista');
   if(!salud.length){ sl.appendChild(h(`<div class="hint" style="text-align:center;padding:14px">Sin registros de salud todavía.</div>`)); }
   else{ const g=h('<div class="lgroup"></div>'); salud.forEach(s=>{ const row=h(`<div class="grow"><span class="gtx"><b>${s.tipo}${s.producto?' · '+s.producto:''}</b><small>${s.fecha}${s.nota?' · '+s.nota:''}</small></span><button style="background:none;color:var(--danger);border:none;font-size:1.1rem;cursor:pointer">✕</button></div>`);
     row.querySelector('button').onclick=async()=>{ if(!confirm('¿Eliminar este registro?'))return; await del('salud',s.id); detalleAnimal(a); }; g.appendChild(row); }); sl.appendChild(g); }
-  el.querySelector('#del').onclick=async()=>{ if(!confirm('¿Eliminar este animal?'))return; await del('animales',a.id); toast('Animal eliminado'); show('animales'); };
+  el.querySelector('#del').onclick=async()=>{ if(!confirm('¿Eliminar este animal?'))return; await del('animales',a.id); if(a.fotoId) await del('fotos',a.fotoId); toast('Animal eliminado'); show('animales'); };
   currentScreen='animal'; view.innerHTML=''; view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){}
 }
 function agregarSalud(a){
@@ -866,12 +970,12 @@ screens.backup = () => {
   return el;
 };
 async function exportarJSON(){ toast('Preparando copia…'); const data={version:5,fecha:hoyISO(),meta:META};
-  for(const s of ['registros','produccion','animales','leche','salud','inventario']) data[s]=await all(s);
+  for(const s of ['registros','produccion','animales','leche','salud','inventario','caja']) data[s]=await all(s);
   const fotos=await all('fotos'); data.fotos=[]; for(const f of fotos){ if(f.blob){ try{ data.fotos.push({id:f.id,b64:await blob2b64(f.blob)}); }catch(e){} } }
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`Backup_Finca_${hoyISO()}.json`; a.click(); toast('Copia exportada'); }
 async function importarJSON(e){ const file=e.target.files[0]; if(!file)return; if(!confirm('Esto agregará/reemplazará los datos de la copia. ¿Continuar?'))return;
   try{ const txt=await file.text(); const data=JSON.parse(txt);
-    for(const s of ['registros','produccion','animales','leche','salud','inventario']) if(Array.isArray(data[s])) for(const r of data[s]) await put(s,r);
+    for(const s of ['registros','produccion','animales','leche','salud','inventario','caja']) if(Array.isArray(data[s])) for(const r of data[s]) await put(s,r);
     if(Array.isArray(data.fotos)) for(const f of data.fotos){ if(f.b64){ try{ await put('fotos',{id:f.id,blob:b642blob(f.b64)}); }catch(e){} } }
     if(data.meta){ META=Object.assign({},DEFAULTS,data.meta); await saveMeta(); }
     toast('Copia importada'); actualizarSync(); show('home'); }
@@ -890,7 +994,7 @@ screens.config = () => {
     <div class="lgroup"><div class="grow"><span class="gtx"><b>Guardado local</b></span><span class="gval">${useMem?'⚠️ solo memoria*':'✓ activo'}</span></div><div class="grow"><span class="gtx"><b>Registros</b></span><span class="gval" id="ncount">…</span></div></div>
     <p class="hint" ${useMem?'':'style="display:none"'}>*Esta vista previa no guarda permanente; en tu teléfono / GitHub Pages sí.</p></section>`);
   el.querySelector('.back').onclick=()=>show('mas');
-  (async()=>{ let n=0; for(const s of ['registros','produccion','animales','leche','salud','inventario']) n+=(await all(s)).length; const nc=el.querySelector('#ncount'); if(nc)nc.textContent=n; })();
+  (async()=>{ let n=0; for(const s of ['registros','produccion','animales','leche','salud','inventario','caja']) n+=(await all(s)).length; const nc=el.querySelector('#ncount'); if(nc)nc.textContent=n; })();
   el.querySelector('#guardar').onclick=async()=>{ META.appsUrl=el.querySelector('#url').value.trim(); META.token=el.querySelector('#token').value.trim(); META.sheetUrl=el.querySelector('#sheet').value.trim(); await saveMeta(); toast('Ajustes guardados'); actualizarSync(); sincronizar(); };
   el.querySelector('#probar').onclick=()=>sincronizar(true);
   return el;
