@@ -1,65 +1,1328 @@
-/* Service Worker — Finca La Esperanza
-   Cachea el "esqueleto" de la app para que abra sin internet.
-   Los datos NO se guardan aquí (eso lo hace IndexedDB en la app);
-   esto solo hace que la pantalla cargue estando offline. */
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F2F2F6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Finca La Esperanza">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Finca La Esperanza</title>
+<style>
+  :root{
+    --bg:#EFEFF3; --surface:#FFFFFF; --surface-press:#F1F1F4;
+    --label:#0E0F13; --secondary:#8A8A8F; --tertiary:#C3C3C8;
+    --separator:rgba(60,60,67,.13);
+    --accent:#137A4F; --accent-press:#0F6341; --accent-soft:#E4F1EA;
+    --gold:#B8871C; --gold-soft:#F6ECD3; --rust:#BB4D2C; --rust-soft:#F7E7E0;
+    --navy:#1B3A5B; --slate:#5E6B78; --danger:#D8452E; --danger-soft:#FBE6E2;
+    --radius:16px; --radius-lg:22px;
+    --shadow-card:0 1px 2px rgba(16,17,19,.04), 0 8px 22px rgba(16,17,19,.05);
+    --shadow-btn:0 1px 2px rgba(16,17,19,.10);
+    --tap:54px; font-size:17px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{background:var(--bg);color:var(--label);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+    line-height:1.45;-webkit-font-smoothing:antialiased;}
+  .app{max-width:540px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;}
+  .ic{width:1.4em;height:1.4em;display:inline-block;vertical-align:middle;}
+  @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important;}}
 
-const CACHE = 'finca-esperanza-v13';
-const ASSETS = [
-  './',
-  './index.html',
-  './manifest.json',
-  './logo.jpg',
-  './logo-badge.jpg',
-  './icon-192.png',
-  './icon-512.png',
-  './icon.svg'
-];
+  header{position:sticky;top:0;z-index:20;background:rgba(248,248,250,.80);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:.5px solid var(--separator);padding:calc(env(safe-area-inset-top) + 9px) 16px 9px;display:flex;align-items:center;gap:10px;}
+  header .badge{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:#fff;box-shadow:0 0 0 .5px var(--separator);}
+  header .wm{flex:1;font-size:1.02rem;font-weight:700;letter-spacing:-.2px;}
+  header .gear{background:none;border:none;color:var(--accent);width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  header .gear:active{background:var(--surface-press);} header .gear .ic{width:23px;height:23px;}
+  .statusline{text-align:center;font-size:.74rem;color:var(--secondary);padding:5px 16px 0;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .statusline .dot{width:7px;height:7px;border-radius:50%;background:#34C759;}
+  .statusline.pend .dot{background:var(--gold);} .statusline.off .dot{background:#FF9F0A;}
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
-});
+  main{flex:1;padding:6px 16px 108px;}
+  .screen{animation:fade .22s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @keyframes slideup{from{transform:translateY(100%);}to{transform:translateY(0);}}
 
-self.addEventListener('activate', e => {
-  e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
-  );
-});
+  .ltitle{font-size:2rem;font-weight:800;letter-spacing:-.6px;margin:8px 0 2px;line-height:1.08;}
+  .lsub{color:var(--secondary);font-size:.98rem;margin:0 0 18px;font-weight:500;}
+  .backrow{padding:8px 0 2px;}
+  .back{background:none;border:none;color:var(--accent);font-size:1.04rem;font-weight:500;cursor:pointer;padding:6px 6px 6px 0;display:inline-flex;align-items:center;gap:1px;margin-left:-4px;}
+  .back .ic{width:22px;height:22px;}
 
-self.addEventListener('fetch', e => {
-  const req = e.request;
-  // No interceptar las llamadas al Apps Script (deben ir a la red)
-  if (req.url.includes('script.google.com') || req.method !== 'GET') return;
+  .ghead{font-size:.8rem;font-weight:600;color:var(--secondary);margin:24px 0 7px 16px;letter-spacing:.1px;}
+  .ghead:first-child{margin-top:6px;}
+  .ghead.rowh{display:flex;justify-content:space-between;align-items:center;margin-right:6px;}
+  .ghead .addlink{color:var(--accent);font-weight:600;cursor:pointer;font-size:.86rem;}
+  .lgroup{background:var(--surface);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-card);}
+  .grow{display:flex;align-items:center;gap:13px;padding:12px 14px;min-height:56px;position:relative;width:100%;background:var(--surface);border:none;text-align:left;color:var(--label);font-family:inherit;font-size:1.02rem;}
+  .grow+.grow::before{content:"";position:absolute;top:0;left:14px;right:0;height:.5px;background:var(--separator);}
+  .lgroup.inset .grow+.grow::before{left:60px;}
+  .grow.tap{cursor:pointer;} .grow.tap:active{background:var(--surface-press);}
+  .gtile{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;flex:0 0 auto;box-shadow:0 1px 1px rgba(0,0,0,.10);}
+  .gtile .ic{width:20px;height:20px;}
+  .gtx{flex:1;min-width:0;} .gtx b{font-weight:600;font-size:1.05rem;display:block;letter-spacing:-.2px;} .gtx small{color:var(--secondary);font-size:.86rem;}
+  .gchev{color:var(--tertiary);flex:0 0 auto;} .gchev .ic{width:19px;height:19px;stroke-width:2.4;}
+  .gval{color:var(--secondary);font-variant-numeric:tabular-nums;flex:0 0 auto;font-size:1rem;}
+  .badge-s{font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:999px;flex:0 0 auto;}
+  .b-green{background:var(--accent-soft);color:var(--accent-press);} .b-gold{background:var(--gold-soft);color:var(--gold);}
+  .b-rust{background:var(--rust-soft);color:var(--rust);} .b-slate{background:#E9EDF0;color:var(--slate);} .b-danger{background:var(--danger-soft);color:var(--danger);}
 
-  // La app (HTML/JS) se pide primero a la red: así una versión nueva llega enseguida.
-  // Si no hay señal, se usa la copia guardada.
-  const esApp = req.mode === 'navigate' || req.destination === 'document' ||
-                req.url.endsWith('.html') || req.url.endsWith('/');
-  if (esApp) {
-    e.respondWith(
-      fetch(req).then(resp => {
-        if (resp && resp.status === 200) {
-          const copy = resp.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
-        }
-        return resp;
-      }).catch(() => caches.match(req).then(c => c || caches.match('./index.html')))
-    );
+  .field{margin-bottom:6px;} .field>label{display:block;font-size:.8rem;font-weight:600;color:var(--secondary);margin:20px 0 8px 4px;}
+  .field>label .soft{font-weight:400;}
+  input[type=text],input[type=number],input[type=date],textarea,select{width:100%;min-height:var(--tap);border:.5px solid var(--separator);border-radius:14px;background:var(--surface);color:var(--label);font-size:1.08rem;padding:0 15px;font-family:inherit;box-shadow:var(--shadow-card);transition:border-color .15s,box-shadow .15s;}
+  select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238A8A8F' stroke-width='2'><path d='M4 6l4 4 4-4'/></svg>");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px;}
+  textarea{padding:13px 15px;min-height:70px;line-height:1.45;resize:vertical;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3.5px var(--accent-soft);}
+  .row2{display:flex;gap:12px;} .row2 .field{flex:1;min-width:0;}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{border:none;background:#E7E7EC;color:var(--label);border-radius:12px;padding:11px 16px;font-size:1.02rem;font-weight:500;cursor:pointer;min-height:46px;transition:transform .08s;}
+  .chip:active{transform:scale(.95);} .chip.sel,.chip.gold.sel{background:var(--accent);color:#fff;}
+  .chip.add{background:transparent;color:var(--accent);box-shadow:inset 0 0 0 1.5px var(--separator);}
+
+  .total-box{background:var(--surface);border-radius:var(--radius);padding:15px 18px;display:flex;justify-content:space-between;align-items:center;margin:24px 0 10px;box-shadow:var(--shadow-card);}
+  .total-box .lbl{font-weight:500;color:var(--secondary);} .total-box .val{font-size:1.7rem;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:var(--accent);}
+
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px;}
+  .kpi{background:var(--surface);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow-card);}
+  .kpi .kl{font-size:.8rem;color:var(--secondary);font-weight:600;margin-bottom:3px;}
+  .kpi .kv{font-size:1.55rem;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;}
+  .kpi.wide{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;}
+  .kpi.wide .kv{font-size:1.9rem;}
+  .alert{display:flex;gap:11px;align-items:center;background:var(--gold-soft);border-radius:14px;padding:12px 14px;margin-bottom:10px;font-size:.94rem;}
+  .alert.dgr{background:var(--danger-soft);} .alert .ic{width:22px;height:22px;color:var(--gold);flex:0 0 auto;} .alert.dgr .ic{color:var(--danger);}
+  .qbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:11px;}
+  .qbtn{background:var(--surface);border:none;border-radius:14px;padding:14px 6px 11px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;box-shadow:var(--shadow-card);color:var(--label);font-weight:600;font-size:.82rem;}
+  .qbtn:active{background:var(--surface-press);} .qbtn .qi{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;} .qbtn .qi .ic{width:20px;height:20px;}
+
+  .foto-btn{width:100%;min-height:var(--tap);border:none;background:var(--surface);border-radius:14px;color:var(--accent);font-weight:500;font-size:1.04rem;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:var(--shadow-card);}
+  .foto-btn:active{background:var(--surface-press);} .foto-btn .ic{width:22px;height:22px;}
+  .foto-preview{margin-top:12px;position:relative;display:none;}
+  .foto-preview img{width:100%;border-radius:14px;display:block;box-shadow:var(--shadow-card);}
+  .foto-preview .x{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.55);color:#fff;border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;cursor:pointer;}
+  .foto-note{font-size:.82rem;color:var(--secondary);margin:8px 0 0 4px;}
+
+  .save{width:100%;min-height:52px;background:var(--accent);color:#fff;border:none;border-radius:14px;font-size:1.1rem;font-weight:600;letter-spacing:-.2px;cursor:pointer;margin-top:22px;box-shadow:var(--shadow-btn);transition:transform .08s,background .15s;display:flex;align-items:center;justify-content:center;gap:8px;}
+  .save:active{transform:scale(.985);background:var(--accent-press);} .save.gold{background:var(--gold);} .save.rust{background:var(--rust);} .save .ic{width:21px;height:21px;}
+  .btn-outline{width:100%;min-height:var(--tap);border:none;background:var(--surface);border-radius:14px;font-size:1.04rem;font-weight:500;color:var(--accent);cursor:pointer;margin-bottom:11px;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:var(--shadow-card);}
+  .btn-outline:active{background:var(--surface-press);} .btn-outline .ic{width:21px;height:21px;}
+  .linkbtn{background:none;border:none;color:var(--accent);font-weight:500;cursor:pointer;font-size:.98rem;padding:10px 4px;}
+  .danger-link{color:var(--danger);background:var(--surface);border:none;font-weight:500;cursor:pointer;font-size:1.02rem;padding:15px;width:100%;border-radius:14px;box-shadow:var(--shadow-card);margin-top:12px;}
+
+  .seg{display:flex;background:#E4E4E9;border-radius:10px;padding:2px;margin:6px 0 18px;}
+  .seg button{flex:1;min-height:38px;border:none;background:transparent;font-weight:600;font-size:.92rem;color:var(--label);border-radius:8px;cursor:pointer;transition:background .18s;letter-spacing:-.2px;}
+  .seg button.sel{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.14);}
+  .navsel{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:14px;}
+  .navsel button{width:38px;height:38px;border:none;background:var(--surface);border-radius:10px;color:var(--accent);font-size:1.3rem;cursor:pointer;box-shadow:var(--shadow-card);}
+  .navsel b{min-width:130px;text-align:center;font-weight:700;}
+
+  .card{background:var(--surface);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;box-shadow:var(--shadow-card);}
+  .card h3{margin:0 0 10px;font-size:.82rem;font-weight:600;color:var(--secondary);letter-spacing:.1px;}
+  .line{display:flex;justify-content:space-between;padding:9px 0;border-bottom:.5px solid var(--separator);font-size:1.05rem;}
+  .line:last-child{border-bottom:none;} .line .k{color:var(--label);} .line .v{font-weight:600;font-variant-numeric:tabular-nums;}
+  .bigline{display:flex;justify-content:space-between;align-items:baseline;padding-top:4px;}
+  .bigline .k{font-weight:600;font-size:1.05rem;} .bigline .v{font-weight:800;font-size:1.6rem;letter-spacing:-.5px;font-variant-numeric:tabular-nums;}
+  .pos{color:var(--accent);} .neg{color:var(--rust);}
+  .chart svg{width:100%;height:auto;display:block;} .legend{display:flex;gap:18px;font-size:.8rem;color:var(--secondary);margin-top:10px;justify-content:center;} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+
+  .empty{text-align:center;color:var(--secondary);padding:52px 24px;} .empty .ic{width:42px;height:42px;color:var(--tertiary);margin-bottom:10px;}
+  .rec-amt{font-weight:700;font-variant-numeric:tabular-nums;flex:0 0 auto;}
+  .rdot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;} .rdot.ing{background:var(--accent);} .rdot.egr{background:var(--rust);}
+  .hint{font-size:.86rem;color:var(--secondary);margin:12px 4px 0;line-height:1.45;}
+  .pill-ok{display:inline-block;background:var(--accent-soft);color:var(--accent-press);border-radius:999px;padding:3px 11px;font-size:.8rem;font-weight:600;}
+
+  .plan-item{display:flex;align-items:center;gap:10px;padding:11px 14px;position:relative;background:var(--surface);}
+  .plan-item+.plan-item::before{content:"";position:absolute;top:0;left:14px;right:0;height:.5px;background:var(--separator);}
+  .plan-item .n{width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent-press);font-weight:700;font-size:.8rem;display:flex;align-items:center;justify-content:center;flex:0 0 auto;}
+  .plan-item .tx{flex:1;font-size:1rem;border:none;background:none;min-height:auto;padding:2px 0;box-shadow:none;} .plan-item .tx:focus{box-shadow:none;}
+  .plan-item .mv{background:#EEE;border:none;color:var(--slate);width:30px;height:30px;border-radius:8px;font-size:1rem;cursor:pointer;flex:0 0 auto;}
+  .plan-item .rm{background:none;border:none;color:var(--danger);font-size:1.15rem;cursor:pointer;flex:0 0 auto;padding:0 4px;}
+  #planprev{margin-top:16px;display:none;} #planprev img{width:100%;border-radius:14px;display:block;box-shadow:var(--shadow-card);}
+
+  .tabbar{position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(248,248,250,.82);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--separator);display:flex;padding-bottom:env(safe-area-inset-bottom);}
+  .tabbar .inner{max-width:540px;margin:0 auto;width:100%;display:flex;}
+  .tabbar button{flex:1;background:none;border:none;padding:7px 0 6px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--secondary);font-size:.62rem;font-weight:600;cursor:pointer;}
+  .tabbar button .ic{width:25px;height:25px;stroke-width:1.8;} .tabbar button.active{color:var(--accent);}
+
+  .modal-ov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.4);display:flex;align-items:flex-end;justify-content:center;}
+  .modal-sheet{background:var(--bg);width:100%;max-width:540px;border-radius:20px 20px 0 0;max-height:92vh;overflow-y:auto;animation:slideup .25s ease;padding-bottom:env(safe-area-inset-bottom);}
+  .modal-head{position:sticky;top:0;background:var(--bg);display:flex;align-items:center;justify-content:space-between;padding:16px 18px 10px;}
+  .modal-head b{font-size:1.2rem;font-weight:800;letter-spacing:-.3px;} .modal-x{background:#E4E4E9;border:none;width:32px;height:32px;border-radius:50%;font-size:1rem;color:var(--secondary);cursor:pointer;}
+  .modal-body{padding:0 18px 8px;} .modal-actions{padding:6px 18px 20px;}
+
+  #toast{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(16px);background:rgba(28,28,30,.95);color:#fff;padding:13px 18px;border-radius:14px;font-weight:500;display:flex;align-items:center;gap:16px;opacity:0;pointer-events:none;transition:.28s;z-index:70;max-width:90%;box-shadow:0 8px 26px rgba(0,0,0,.28);}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;} #toast button{background:none;color:#5AC8FA;border:none;font-weight:600;cursor:pointer;font-size:1rem;padding:0;}
+
+  .swrow{display:flex;align-items:center;gap:13px;background:var(--surface);border-radius:14px;padding:13px 15px;box-shadow:var(--shadow-card);min-height:var(--tap);}
+  .swrow .gtx b{font-weight:600;font-size:1.02rem;display:block;} .swrow .gtx small{color:var(--secondary);font-size:.84rem;}
+  .sw{position:relative;width:52px;height:31px;border-radius:999px;background:#E3E3E8;border:none;flex:0 0 auto;cursor:pointer;transition:background .2s;}
+  .sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s;}
+  .sw.on{background:var(--accent);} .sw.on::after{transform:translateX(21px);}
+  .cajasaldo{background:var(--surface);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-card);text-align:center;margin-bottom:16px;}
+  .cajasaldo .kl{font-size:.82rem;color:var(--secondary);font-weight:600;}
+  .cajasaldo .kv{font-size:2.4rem;font-weight:800;letter-spacing:-.8px;font-variant-numeric:tabular-nums;line-height:1.1;}
+  .mov-caja{display:flex;align-items:center;gap:12px;padding:12px 14px;position:relative;background:var(--surface);}
+  .mov-caja+.mov-caja::before{content:"";position:absolute;top:0;left:14px;right:0;height:.5px;background:var(--separator);}
+  .avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;flex:0 0 auto;background:#E7E7EC;box-shadow:0 0 0 .5px var(--separator);}
+  .avatar-ph{width:44px;height:44px;border-radius:50%;flex:0 0 auto;background:#E7E7EC;display:flex;align-items:center;justify-content:center;color:var(--slate);}
+  .avatar-ph .ic{width:26px;height:26px;}
+  .hero-foto{width:100%;max-height:300px;object-fit:cover;border-radius:var(--radius);display:block;box-shadow:var(--shadow-card);margin-bottom:16px;}
+  .foto-circ{display:flex;flex-direction:column;align-items:center;gap:10px;margin:6px 0 4px;}
+  .foto-circ .big{width:120px;height:120px;border-radius:50%;object-fit:cover;background:#E7E7EC;box-shadow:0 0 0 .5px var(--separator);}
+  .foto-circ .bigph{width:120px;height:120px;border-radius:50%;background:#E7E7EC;display:flex;align-items:center;justify-content:center;color:var(--slate);}
+  .foto-circ .bigph .ic{width:56px;height:56px;}
+  .foto-circ .lnk{background:none;border:none;color:var(--accent);font-weight:600;font-size:.98rem;cursor:pointer;padding:4px;}
+  .galgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .galcell{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;border:none;padding:0;background:#E7E7EC;cursor:pointer;box-shadow:var(--shadow-card);}
+  .galcell img{width:100%;height:100%;object-fit:cover;display:block;}
+  .galcell .cap{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.65));color:#fff;font-size:.66rem;font-weight:600;padding:12px 5px 4px;text-align:center;}
+  .galadd{aspect-ratio:1;border-radius:12px;border:1.5px dashed var(--tertiary);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--accent);font-size:.76rem;font-weight:600;cursor:pointer;}
+  .galadd .ic{width:26px;height:26px;}
+  .lightbox{position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.94);display:flex;flex-direction:column;}
+  .lightbox .lbtop{display:flex;justify-content:flex-end;padding:calc(env(safe-area-inset-top) + 12px) 16px 8px;}
+  .lightbox .lbx{background:rgba(255,255,255,.18);border:none;color:#fff;width:38px;height:38px;border-radius:50%;font-size:1.1rem;cursor:pointer;}
+  .lightbox .lbimg{flex:1;display:flex;align-items:center;justify-content:center;padding:0 12px;min-height:0;}
+  .lightbox .lbimg img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;}
+  .lightbox .lbinfo{color:#fff;padding:16px 20px calc(env(safe-area-inset-bottom) + 20px);text-align:center;}
+  .lightbox .lbinfo b{display:block;font-size:1.05rem;} .lightbox .lbinfo small{color:#B8B8BE;}
+  .lightbox .lbdel{background:none;border:none;color:#FF6B5B;font-weight:600;font-size:1rem;cursor:pointer;margin-top:14px;padding:8px;}
+  #printarea{display:none;}
+  @media print{ body{background:#fff;} .app,#toast,.tabbar,.modal-ov{display:none !important;} #printarea{display:block !important;} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img class="badge" src="logo-badge.jpg" alt="" onerror="this.style.display='none'">
+    <span class="wm">Finca La Esperanza</span>
+    <button class="gear" id="gearbtn" aria-label="Ajustes"></button>
+  </header>
+  <div class="statusline" id="statusline"><span class="dot"></span><span id="statustext">Todo guardado</span></div>
+  <main id="view"></main>
+</div>
+<nav class="tabbar"><div class="inner" id="tabbar"></div></nav>
+<div id="toast"></div>
+<div id="printarea"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const view = $('#view');
+
+const ICONS = {
+  farmer:'<path d="M4 9h16"/><path d="M6.5 9a5.5 5 0 0 1 11 0"/><circle cx="12" cy="14" r="3"/><path d="M5.5 21c.6-3 3.2-4.5 6.5-4.5S18 18 18.5 21"/>',
+  coin:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.4v9.2"/><path d="M14.6 9.3c-.6-.9-1.6-1.3-2.6-1.3-1.4 0-2.5.8-2.5 1.9 0 1.2 1.1 1.7 2.5 2s2.6.8 2.6 2c0 1.2-1.2 2-2.6 2-1.1 0-2.1-.5-2.7-1.4"/>',
+  receipt:'<path d="M6 3.5h12v17l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2-2 1.2z"/><path d="M9 8.5h6"/><path d="M9 12.5h6"/>',
+  chart:'<path d="M4 4v16h16"/><rect x="7.3" y="12" width="2.6" height="5"/><rect x="11.8" y="8.5" width="2.6" height="8.5"/><rect x="16.3" y="14" width="2.6" height="3"/>',
+  calendar:'<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 9.5h17"/><path d="M8 3.5v3.5"/><path d="M16 3.5v3.5"/>',
+  doc:'<path d="M7 3.5h7l4 4V20.5H7z"/><path d="M14 3.5V8h4"/><path d="M9.5 12.5h5"/><path d="M9.5 15.5h5"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  gear:'<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/>',
+  chevron:'<path d="M9 6l6 6-6 6"/>', back:'<path d="M15 5l-7 7 7 7"/>',
+  gallery:'<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M4 17l4.5-4 3 2.5L15 11l5 5"/>',
+  home:'<path d="M4 11.5 12 5l8 6.5"/><path d="M6 10.5V20h12v-9.5"/>',
+  spark:'<path d="M12 3.5l1.9 4.6L18.5 10l-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9z"/>',
+  share:'<path d="M12 15V4"/><path d="M8.5 7.5 12 4l3.5 3.5"/><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7"/>',
+  cow:'<path d="M5.5 7c-1.2-1.6-3-1.4-3 .4 0 1.4 1.3 2 2.4 2"/><path d="M18.5 7c1.2-1.6 3-1.4 3 .4 0 1.4-1.3 2-2.4 2"/><path d="M4.7 9.2C4.7 13.5 8 17 12 17s7.3-3.5 7.3-7.8c0-2-1.2-3.3-2.8-4.2C15 4 13.5 3.6 12 3.6s-3 .4-4.5 1.4C5.9 5.9 4.7 7.2 4.7 9.2z"/><circle cx="9.5" cy="10" r=".9"/><circle cx="14.5" cy="10" r=".9"/><path d="M9.5 13.2c1.4 1 3.6 1 5 0"/>',
+  box:'<path d="M4 8l8-4 8 4-8 4z"/><path d="M4 8v8l8 4 8-4V8"/><path d="M12 12v8"/>',
+  more:'<circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/>',
+  milk:'<path d="M8.5 3h7l-.4 3.5 1.4 3V20a1 1 0 0 1-1 1H8.5a1 1 0 0 1-1-1V9.5l1.4-3z"/><path d="M8 10h8"/>',
+  leaf:'<path d="M5 19c0-8 6-14 14-14 0 8-6 14-14 14z"/><path d="M5.5 18.5C8 14 12 11 16 10"/>',
+  save:'<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7"/><rect x="8" y="13" width="8" height="5"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>'
+};
+function icon(n){ return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n]||''}</svg>`; }
+function tile(n,c){ return `<span class="gtile" style="background:${c}">${icon(n)}</span>`; }
+
+const VACAS_FIJAS=['Chequear las vacas.','Revisar agua y alimentación de las vacas.','Estar pendiente de cualquier novedad en las vacas.','Estar pendiente del parto de alguna vaca.'];
+const TAREAS_COMUNES=['Cosechar cacao y venderlo.','Cosechar verde y venderlo.','Limpiar el verde con guadaña.','Limpiar con machete.','Terminar burrito.','Revisar alambrada.','Comprar vacuna para el carbunco.','Cosechar y limpiar maqueño.','Eliminar casas de cubos.'];
+const PRODUCTOS_PROD=['Cacao','Verde','Maqueño','Leche','Otro'];
+const ESTADOS_CACAO=['En baba','Semi seco','Seco'];
+function esCacao(nombre){ return (nombre||'').toLowerCase().includes('cacao'); }
+const ESTADOS_ANIMAL=['Lactando','Seca','Gestante','Ternero/a','Vendida','Otro'];
+const RAZAS=['Mestiza','Brahman','Holstein','Jersey','Otra'];
+const TIPO_SALUD=['Vacuna','Desparasitación','Tratamiento','Revisión','Otro'];
+const CAT_INV=['Medicina','Alimento','Material','Agrícola','Otro'];
+const DEFAULTS={
+  trabajadores:['Washington'],
+  formasPago:[{n:'Jornal',p:15},{n:'Guadaña',p:30},{n:'Rodeo de vacas',p:5},{n:'Extra',p:0,editable:true}],
+  productosVenta:[{n:'Cacao en libras',u:'libras'},{n:'Caja de verde',u:'cajas'},{n:'Litro de leche',u:'litros'}],
+  gastos:['Alimentación animal','Medicina','Vacuna','Combustible','Fertilizante','Herramientas','Mantenimiento','Transporte','Otro'],
+  compradores:[], ultimoPrecio:{},
+  appsUrl:'https://script.google.com/macros/s/AKfycbwWAndNPTO6QF_ZEzbxLFGvbuyhc53Q8ezvrvV9WGJWUn_Cwyw6xRYJSuAweMtWikrG/exec',
+  token:'1108', sheetUrl:'', ultimaBajada:0
+};
+let META=null;
+const STORES=['registros','produccion','animales','leche','salud','inventario','caja','galeria','fotos','meta'];
+
+let db=null, mem={}, useMem=false;
+function M(s){ return mem[s]||(mem[s]=new Map()); }
+function openDB(){ return new Promise((res)=>{ let done=false; const finish=()=>{ if(!done){done=true;res();} };
+  const t=setTimeout(()=>{ useMem=true; finish(); },1500);
+  try{ if(!('indexedDB' in window)||!window.indexedDB){ useMem=true; clearTimeout(t); return finish(); }
+    const rq=indexedDB.open('finca-esperanza',4);
+    rq.onupgradeneeded=e=>{ const d=e.target.result;
+      STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:s==='meta'?'k':'id'}); }); };
+    rq.onsuccess=e=>{ db=e.target.result; clearTimeout(t); finish(); };
+    rq.onerror=()=>{ useMem=true; clearTimeout(t); finish(); };
+    rq.onblocked=()=>{ useMem=true; clearTimeout(t); finish(); };
+  }catch(e){ useMem=true; clearTimeout(t); finish(); } }); }
+function txs(s,m='readonly'){ return db.transaction(s,m).objectStore(s); }
+function put(s,v){ if(useMem){ M(s).set(v.id||v.k,v); return Promise.resolve(); } return new Promise((res,rej)=>{ const r=txs(s,'readwrite').put(v); r.onsuccess=res; r.onerror=()=>rej(r.error); }); }
+function del(s,id){ if(useMem){ M(s).delete(id); return Promise.resolve(); } return new Promise((res,rej)=>{ const r=txs(s,'readwrite').delete(id); r.onsuccess=res; r.onerror=()=>rej(r.error); }); }
+function get(s,id){ if(useMem){ return Promise.resolve(M(s).get(id)); } return new Promise((res,rej)=>{ const r=txs(s).get(id); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+function all(s){ if(useMem){ return Promise.resolve([...M(s).values()]); } return new Promise((res,rej)=>{ const r=txs(s).getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error); }); }
+async function loadMeta(){ const s=await get('meta','config'); META=Object.assign({},DEFAULTS, s?s.v:{});
+  META.ultimoPrecio=Object.assign({},(s&&s.v.ultimoPrecio)||{}); META.compradores=(s&&s.v.compradores)||[];
+  if(!META.appsUrl){ META.appsUrl=DEFAULTS.appsUrl; META.token=META.token||DEFAULTS.token; } }
+async function saveMeta(){ await put('meta',{k:'config',v:META}); }
+
+const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MESES_AB=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const DIAS=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fechaLarga(){ const d=new Date(); return `${DIAS[d.getDay()]}, ${d.getDate()} de ${MESES[d.getMonth()].toLowerCase()}`; }
+function num(v){ if(typeof v==='number')return v; if(v==null)return 0; return parseFloat(String(v).replace(/\s/g,'').replace(',','.'))||0; }
+function money(n){ return '$'+(Math.round(n*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function nuevoId(){ const d=new Date(),p=x=>String(x).padStart(2,'0'); return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}-${Math.random().toString(36).slice(2,4)}`; }
+function parseFecha(iso){ const [y,m,d]=iso.split('-').map(Number); return new Date(y,m-1,d); }
+function lunesDe(d){ const day=(d.getDay()+6)%7; const l=new Date(d); l.setDate(d.getDate()-day); l.setHours(0,0,0,0); return l; }
+function semanaDe(iso){ const l=lunesDe(parseFecha(iso)); const dom=new Date(l); dom.setDate(l.getDate()+6); return `${l.getDate()} ${MESES_AB[l.getMonth()]} - ${dom.getDate()} ${MESES_AB[dom.getMonth()]} ${dom.getFullYear()}`; }
+function mismaSemana(a,b){ return semanaDe(a)===semanaDe(b); }
+function ymDe(iso){ return iso.slice(0,7); }
+function ymActual(){ return hoyISO().slice(0,7); }
+function ymLabel(ym){ const [y,m]=ym.split('-'); return `${MESES[+m-1]} ${y}`; }
+function ymShift(ym,delta){ let [y,m]=ym.split('-').map(Number); m+=delta; while(m<1){m+=12;y--;} while(m>12){m-=12;y++;} return y+'-'+String(m).padStart(2,'0'); }
+function diasEntre(a,b){ return Math.round((parseFecha(b)-parseFecha(a))/86400000); }
+function semanaLabelActual(){ const l=lunesDe(new Date()); const dom=new Date(l); dom.setDate(l.getDate()+6); const mes=MESES[dom.getMonth()].toUpperCase();
+  return l.getMonth()===dom.getMonth()?`SEMANA ${l.getDate()} - ${dom.getDate()} DE ${mes}`:`SEMANA ${l.getDate()} ${MESES_AB[l.getMonth()].toUpperCase()} - ${dom.getDate()} ${mes}`; }
+function h(html){ const t=document.createElement('template'); t.innerHTML=html.trim(); return t.content.firstElementChild; }
+function opts(arr,sel){ return arr.map(o=>`<option ${o===sel?'selected':''}>${o}</option>`).join(''); }
+
+function comprimir(file,maxDim=1280,q=0.68){ return new Promise((res,rej)=>{ const img=new Image(),url=URL.createObjectURL(file);
+  img.onload=()=>{ let{width:w,height:hh}=img; if(w>=hh&&w>maxDim){ hh=Math.round(hh*maxDim/w); w=maxDim; } else if(hh>maxDim){ w=Math.round(w*maxDim/hh); hh=maxDim; }
+    const c=document.createElement('canvas'); c.width=w; c.height=hh; c.getContext('2d').drawImage(img,0,0,w,hh); c.toBlob(b=>{ URL.revokeObjectURL(url); res(b); },'image/jpeg',q); };
+  img.onerror=e=>{ URL.revokeObjectURL(url); rej(e); }; img.src=url; }); }
+function blobURL(b){ return b?URL.createObjectURL(b):''; }
+function loadImg(src){ return new Promise(r=>{ const i=new Image(); let done=false; const fin=v=>{ if(!done){done=true;r(v);} }; i.onload=()=>fin(i); i.onerror=()=>fin(null); setTimeout(()=>fin(null),4000); i.src=src; }); }
+
+async function fotoSrc(reg){ if(reg&&reg.fotoId){ const f=await get('fotos',reg.fotoId); if(f&&f.blob) return blobURL(f.blob); }
+  return (reg&&(reg.fotoUrl||reg.comprobanteUrl))||''; }
+function blob2b64(b){ return new Promise((res,rej)=>{
+  try{ const fr=new FileReader(); fr.onload=()=>res(fr.result); fr.onerror=()=>rej(fr.error); fr.readAsDataURL(b); }
+  catch(e){
+    // respaldo: algunos navegadores devuelven el archivo en otro formato
+    try{ b.arrayBuffer().then(buf=>{ let bin=''; const arr=new Uint8Array(buf);
+      for(let i=0;i<arr.length;i++) bin+=String.fromCharCode(arr[i]);
+      res('data:'+(b.type||'image/jpeg')+';base64,'+btoa(bin)); }).catch(rej); }
+    catch(e2){ rej(e2); }
+  } }); }
+function b642blob(durl){ const [m,b64]=durl.split(','); const mime=(m.match(/:(.*?);/)||[])[1]||'image/jpeg'; const bin=atob(b64); const arr=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i); return new Blob([arr],{type:mime}); }
+
+function online(){ return navigator.onLine; }
+const SYNCST=['registros','produccion','animales','leche','salud','inventario','caja','galeria'];
+async function pendientes(){ let p=[]; for(const s of SYNCST){ const items=await all(s); p=p.concat(items.filter(r=>r.sync!=='ok').map(r=>({store:s,r}))); } return p; }
+// vivos = no borrados (el borrado deja marca para que otros teléfonos lo sepan)
+async function vivos(store){ return (await all(store)).filter(r=>!r.borrado); }
+async function borrarReg(store,id){ const r=await get(store,id);
+  if(!r){ await del(store,id); return; }
+  r.borrado=true; r.sync='pend'; r.modificado=Date.now();
+  // libera espacio en el teléfono: la imagen ya está en Drive y el enlace queda guardado
+  if(r.fotoId){ try{ await del('fotos',r.fotoId); }catch(e){} r.fotoId=null; }
+  await put(store,r);
+  actualizarSync(); sincronizar(); }
+async function actualizarSync(){ const bar=$('#statusline'),txt=$('#statustext'); const p=await pendientes(); bar.className='statusline';
+  if(!online()){ bar.classList.add('off'); txt.textContent=p.length?`Sin señal · ${p.length} por subir`:'Sin señal'; return; }
+  if(ultimoErrorBajada){ bar.classList.add('off'); txt.textContent='⚠️ No recibe datos · toca aquí'; return; }
+  if(p.length){ bar.classList.add('pend'); txt.textContent=META.appsUrl?`${p.length} por subir`:`${p.length} guardados en el teléfono`; } else txt.textContent='Todo sincronizado'; }
+let sincronizando=false, bajadaCompletaHecha=false;
+async function sincronizar(manual){ if(!META.appsUrl||!online()||sincronizando){ actualizarSync(); return; }
+  sincronizando=true;
+  try{
+    const sub=await subir();
+    const baj=await bajar();
+    if(manual){ toast(baj<0?(ultimoErrorBajada||'No se pudo conectar'):`Listo · ${sub} subido(s), ${baj} recibido(s)`); }
+    else if(baj>0){ toast(`${baj} registro(s) nuevo(s) de otro teléfono`); refrescarVista(); }
+  }catch(e){ if(manual) toast('No se pudo sincronizar'); }
+  sincronizando=false; actualizarSync(); }
+
+async function subir(){ let n=0, fallosRed=0;
+  for(const {store,r} of await pendientes()){
+    // La foto es opcional: si falla, se sube igual el dato (nunca bloquea la sincronización)
+    let foto=null;
+    if(r.fotoId && !r.fotoUrl){ try{ const f=await get('fotos',r.fotoId); if(f&&f.blob) foto=await blob2b64(f.blob); }catch(e){ foto=null; } }
+    if(!r.modificado) r.modificado=Date.now();
+    try{
+      const resp=await fetch(META.appsUrl,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:META.token,tabla:store,registro:limpiar(r),foto})});
+      const data=await resp.json();
+      if(data&&data.ok){ r.sync='ok'; if(data.fotoUrl){ r.fotoUrl=data.fotoUrl; r.comprobanteUrl=data.fotoUrl; } await put(store,r); n++; }
+      else if(data&&data.error==='token'){ break; }        // token malo: no insistir
+      else { fallosRed++; if(fallosRed>=3) break; }         // error puntual: sigue con los demás
+    }catch(e){ break; }                                     // sin conexión: parar y reintentar luego
+  }
+  return n; }
+
+let ultimoErrorBajada='';
+async function bajar(){
+  try{
+    // La primera bajada de cada sesión trae TODO: así ningún registro se queda atrás
+    const usarCursor = bajadaCompletaHecha && META.ultimaBajada;
+    const url=META.appsUrl+'?token='+encodeURIComponent(META.token)+(usarCursor?('&desde='+META.ultimaBajada):'');
+    const resp=await fetch(url,{method:'GET'});
+    const txt=await resp.text();
+    let data=null; try{ data=JSON.parse(txt); }catch(e){}
+    if(!data){ ultimoErrorBajada = txt.indexOf('Finca La Esperanza')>=0
+        ? 'El script de Google es la versión vieja. Hay que actualizarlo y volver a implementarlo.'
+        : 'Google no devolvió datos. Revisa que el script esté implementado como "Aplicación web" para "Cualquiera".';
+      return -1; }
+    if(!data.ok){ ultimoErrorBajada = data.error==='token' ? 'El token no coincide con el del script.' : ('Error del script: '+data.error); return -1; }
+    ultimoErrorBajada='';
+    let n=0;
+    for(const store of SYNCST){
+      const remotos=data.datos[store]||[];
+      for(const rem of remotos){
+        if(!rem.id) continue;
+        const loc=await get(store,rem.id);
+        const mRem=Number(rem.modificado||0), mLoc=Number((loc&&loc.modificado)||0);
+        if(loc && mLoc>=mRem) continue;              // lo mío es igual o más nuevo
+        const fus=Object.assign({},loc||{},rem);
+        fus.borrado = rem.borrado===true || rem.borrado==='TRUE';
+        fus.sync='ok';
+        if(loc && loc.fotoId) fus.fotoId=loc.fotoId; // conservo la foto local si la tengo
+        ['cantidad','precio','total','monto','litros','stock'].forEach(k=>{ if(fus[k]!=null&&fus[k]!=='') fus[k]=num(fus[k]); });
+        ['caja','pagado','activo'].forEach(k=>{ if(fus[k]==='TRUE'||fus[k]===true) fus[k]=true; else if(fus[k]===''||fus[k]==='FALSE'||fus[k]==null) fus[k]=false; });
+        await put(store,fus); n++;
+      }
+    }
+    bajadaCompletaHecha=true;
+    if(data.servidor){ META.ultimaBajada=data.servidor; await saveMeta(); }
+    return n;
+  }catch(e){ ultimoErrorBajada='No se pudo conectar con Google.'; return -1; } }
+
+function limpiar(r){ const {fotoId,...rest}=r; return rest; }
+function refrescarVista(){ try{ const vistas=['home','animales','analisis','caja','movimientos','inventario']; if(vistas.includes(currentScreen)) show(currentScreen); }catch(e){} }
+
+let toastTimer=null;
+function toast(msg,undoFn){ const t=$('#toast'); t.innerHTML=''; t.appendChild(document.createTextNode(msg));
+  if(undoFn){ const b=document.createElement('button'); b.textContent='Deshacer'; b.onclick=()=>{ undoFn(); t.classList.remove('show'); }; t.appendChild(b); }
+  t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'), undoFn?5000:2200); }
+
+function openModal(title, bodyNode, {okText='Guardar', onOk=null}={}){
+  const ov=h('<div class="modal-ov"></div>');
+  const sheet=h(`<div class="modal-sheet"><div class="modal-head"><b>${title}</b><button class="modal-x" aria-label="Cerrar">✕</button></div><div class="modal-body"></div><div class="modal-actions"><button class="save modal-ok">${okText}</button></div></div>`);
+  sheet.querySelector('.modal-body').appendChild(bodyNode); ov.appendChild(sheet); document.body.appendChild(ov);
+  const close=()=>ov.remove();
+  sheet.querySelector('.modal-x').onclick=close; ov.onclick=e=>{ if(e.target===ov) close(); };
+  sheet.querySelector('.modal-ok').onclick=()=>{ if(onOk) onOk(close); else close(); };
+  return {close,sheet};
+}
+function askText(title,label,val,cb){ const body=h(`<div class="field"><label>${label}</label><input type="text" id="mv"></div>`); body.querySelector('#mv').value=val||'';
+  openModal(title,body,{onOk:close=>{ const v=body.querySelector('#mv').value.trim(); if(v){cb(v);} close(); }}); setTimeout(()=>{try{body.querySelector('#mv').focus();}catch(e){}},60); }
+
+const screens={}; let currentScreen='home';
+const TABS=[['home','Inicio','home'],['animales','Animales','cow'],['finanzas','Finanzas','coin'],['analisis','Análisis','chart'],['mas','Más','more']];
+const TAB_OF={home:'home',animales:'animales',animal:'animales',leche:'animales',finanzas:'finanzas',venta:'finanzas',gasto:'finanzas',trabajador:'finanzas',produccion:'finanzas',movimientos:'finanzas',caja:'finanzas',analisis:'analisis',mas:'mas',inventario:'mas',semana:'mas',reportes:'mas',backup:'mas',config:'mas'};
+function renderTabbar(){ const tb=$('#tabbar'); tb.innerHTML=''; TABS.forEach(([scr,label,ico])=>{ const b=h(`<button data-tab="${scr}">${icon(ico)}<span>${label}</span></button>`); b.onclick=()=>show(scr); tb.appendChild(b); }); }
+function highlightTab(){ const a=TAB_OF[currentScreen]||'home'; document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===a)); }
+function show(name,arg){ if(name!==currentScreen) sincronizar(); currentScreen=name; view.innerHTML=''; const el=screens[name]?screens[name](arg):screens.home(); view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){} }
+$('#gearbtn').innerHTML=icon('gear'); $('#gearbtn').onclick=()=>show('config');
+
+screens.home = () => {
+  const el=h(`<section class="screen"><h1 class="ltitle">Inicio</h1><p class="lsub">${fechaLarga()}</p><div id="dash"></div></section>`);
+  (async()=>{
+    const ym=ymActual(); const dash=el.querySelector('#dash');
+    const regs=await vivos('registros'), leche=await vivos('leche'), animales=await vivos('animales'), inv=await vivos('inventario');
+    const salCaja=await saldoCaja();
+    const mesReg=regs.filter(r=>ymDe(r.fecha)===ym);
+    let ingr=0,gast=0,jornales=0;
+    mesReg.forEach(r=>{ if(r.categoria==='Ingreso')ingr+=r.total; else if(r.categoria==='Egreso'){gast+=r.total; if(r.tipo==='Trabajador')jornales+=r.cantidad;} });
+    const lecheMes=leche.filter(r=>ymDe(r.fecha)===ym).reduce((s,r)=>s+num(r.litros),0);
+    const cacaoVend=mesReg.filter(r=>r.categoria==='Ingreso'&&r.nombreDesc.toLowerCase().includes('cacao')).reduce((s,r)=>s+num(r.cantidad),0);
+    const vacas=animales.filter(a=>a.activo!==false&&a.sexo==='Hembra').length;
+    const gan=ingr-gast;
+    const hoy=hoyISO(); let alertas='';
+    const medVence=inv.filter(i=>i.vencimiento&&diasEntre(hoy,i.vencimiento)<=30);
+    if(medVence.length) alertas+=`<div class="alert dgr">${icon('box')}<div>${medVence.length} producto(s) del inventario vencido(s) o por vencer.</div></div>`;
+    const parto=animales.filter(a=>a.proxParto&&diasEntre(hoy,a.proxParto)>=0&&diasEntre(hoy,a.proxParto)<=15);
+    if(parto.length) alertas+=`<div class="alert">${icon('cow')}<div>${parto.length} vaca(s) próxima(s) a parir (15 días).</div></div>`;
+    if(salCaja<=0){ const hayMov=(await all('caja')).length; if(hayMov) alertas+=`<div class="alert${salCaja<0?' dgr':''}">${icon('coin')}<div>Caja chica ${salCaja<0?'en negativo ('+money(salCaja)+')':'sin saldo'}. Toca Finanzas › Caja chica para recargar.</div></div>`; }
+    dash.innerHTML=`
+      <div class="ghead" style="margin-top:0">${ymLabel(ym)}</div>
+      <div class="kpi-grid">
+        <div class="kpi wide"><div><div class="kl">Ganancia del mes</div><div class="kv ${gan>=0?'pos':'neg'}">${money(gan)}</div></div>${tile('coin','var(--accent)')}</div>
+        <div class="kpi"><div class="kl">Ingresos</div><div class="kv pos">${money(ingr)}</div></div>
+        <div class="kpi"><div class="kl">Gastos</div><div class="kv neg">${money(gast)}</div></div>
+        <div class="kpi"><div class="kl">Leche producida</div><div class="kv">${lecheMes} L</div></div>
+        <div class="kpi"><div class="kl">Cacao vendido</div><div class="kv">${cacaoVend} lb</div></div>
+        <div class="kpi"><div class="kl">Jornales</div><div class="kv">${jornales}</div></div>
+        <div class="kpi"><div class="kl">Vacas</div><div class="kv">${vacas}</div></div>
+        <div class="kpi"><div class="kl">Caja chica</div><div class="kv ${salCaja<0?'neg':''}">${money(salCaja)}</div></div>
+      </div>
+      ${alertas?`<div class="ghead">Alertas</div>${alertas}`:''}
+      <div class="ghead">Registrar rápido</div>
+      <div class="qbtns">
+        <button class="qbtn" data-go="venta"><span class="qi" style="background:var(--gold)">${icon('coin')}</span>Venta</button>
+        <button class="qbtn" data-go="gasto"><span class="qi" style="background:var(--rust)">${icon('receipt')}</span>Gasto</button>
+        <button class="qbtn" data-go="produccion"><span class="qi" style="background:var(--accent)">${icon('leaf')}</span>Producción</button>
+        <button class="qbtn" data-go="leche"><span class="qi" style="background:var(--navy)">${icon('milk')}</span>Leche</button>
+        <button class="qbtn" data-go="trabajador"><span class="qi" style="background:var(--accent)">${icon('farmer')}</span>Trabajador</button>
+        <button class="qbtn" data-go="semana"><span class="qi" style="background:var(--slate)">${icon('calendar')}</span>Semana</button>
+        <button class="qbtn" data-go="caja"><span class="qi" style="background:var(--navy)">${icon('coin')}</span>Caja chica</button>
+        <button class="qbtn" data-go="movimientos"><span class="qi" style="background:var(--slate)">${icon('doc')}</span>Historial</button>
+      </div>`;
+    dash.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+  })();
+  return el;
+};
+
+function chipGroup(items,value,onPick,{gold=false,onAdd=null}={}){
+  const wrap=h('<div class="chips"></div>');
+  items.forEach(it=>{ const c=h(`<button type="button" class="chip${gold?' gold':''}">${it}</button>`); if(it===value)c.classList.add('sel');
+    c.onclick=()=>{ wrap.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); onPick(it); }; wrap.appendChild(c); });
+  if(onAdd){ const a=h('<button type="button" class="chip add">+ Otro</button>'); a.onclick=()=>askText('Nuevo','Nombre','',v=>onAdd(v)); wrap.appendChild(a); }
+  return wrap;
+}
+function fotoField(st){ const box=h(`<div><button type="button" class="foto-btn">${icon('gallery')} Agregar foto</button><input type="file" accept="image/*" hidden>
+    <div class="foto-preview"><img alt=""><button type="button" class="x">✕</button></div></div>`);
+  const btn=box.querySelector('.foto-btn'),inp=box.querySelector('input'),prev=box.querySelector('.foto-preview'),img=box.querySelector('img');
+  btn.onclick=()=>inp.click();
+  inp.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; try{st.fotoBlob=await comprimir(f);}catch{st.fotoBlob=f;} img.src=blobURL(st.fotoBlob); prev.style.display='block'; btn.innerHTML=icon('gallery')+' Cambiar foto'; };
+  box.querySelector('.x').onclick=()=>{ st.fotoBlob=null; inp.value=''; prev.style.display='none'; btn.innerHTML=icon('gallery')+' Agregar foto'; };
+  return box; }
+
+screens.finanzas = () => {
+  const el=h(`<section class="screen"><h1 class="ltitle">Finanzas</h1>
+    <div class="ghead">Registrar</div>
+    <div class="lgroup inset">
+      <button class="grow tap" data-go="venta">${tile('coin','var(--gold)')}<span class="gtx"><b>Venta</b><small>Cacao, verde, leche</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="gasto">${tile('receipt','var(--rust)')}<span class="gtx"><b>Gasto</b><small>Insumos, mantenimiento…</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="produccion">${tile('leaf','var(--accent)')}<span class="gtx"><b>Producción</b><small>Lo cosechado (aparte de venta)</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="trabajador">${tile('farmer','var(--accent)')}<span class="gtx"><b>Trabajador</b><small>Jornal, guadaña, rodeo</small></span><span class="gchev">${icon('chevron')}</span></button>
+    </div>
+    <div class="ghead">Caja e historial</div>
+    <div class="lgroup inset">
+      <button class="grow tap" data-go="caja">${tile('coin','var(--navy)')}<span class="gtx"><b>Caja chica</b><small>Plata de Washington · saldo</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="movimientos">${tile('edit','var(--slate)')}<span class="gtx"><b>Historial de movimientos</b><small>Ver, corregir o borrar registros</small></span><span class="gchev">${icon('chevron')}</span></button>
+    </div></section>`);
+  el.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+  return el;
+};
+
+screens.venta = () => {
+  const p0=META.productosVenta[0]; const st={producto:p0,fecha:hoyISO(),estadoCacao:ESTADOS_CACAO[2],fotoBlob:null};
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Venta</h1>
+    <button class="btn-outline" id="verhist" style="margin-bottom:4px">${icon('doc')} Ver ventas registradas</button>
+    <div class="field"><label>Producto</label><div id="prod"></div></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${st.fecha}"></div>
+    <div class="row2"><div class="field"><label>Cantidad (<span id="unidad">${p0.u}</span>)</label><input type="text" id="cant" inputmode="decimal" placeholder="0"></div>
+      <div class="field"><label>Precio por unidad</label><input type="text" id="precio" inputmode="decimal" placeholder="0,00"></div></div>
+    <div class="field" id="cacaobox"><label>Estado del cacao</label><div id="estcacao"></div></div>
+    <div class="total-box"><span class="lbl">Total</span><span class="val" id="total">$0.00</span></div>
+    <div class="field"><label>Comprobante <span class="soft">· opcional</span></label><div id="foto"></div><div class="foto-note">Se abre la galería. Puedes agregarla después.</div></div>
+    <button class="save gold" id="save">Guardar venta</button></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas');
+  el.querySelector('#verhist').onclick=()=>show('movimientos','ventas');
+  el.querySelector('#foto').appendChild(fotoField(st));
+  const paint=()=>{ el.querySelector('#total').textContent=money(num(el.querySelector('#precio').value)*num(el.querySelector('#cant').value)); };
+  function precioKey(){ return esCacao(st.producto.n)? st.producto.n+' · '+st.estadoCacao : st.producto.n; }
+  function toggleCacao(){ const box=el.querySelector('#cacaobox'); box.style.display=esCacao(st.producto.n)?'block':'none'; }
+  function refreshProd(){ const c=el.querySelector('#prod'); c.innerHTML='';
+    c.appendChild(chipGroup(META.productosVenta.map(p=>p.n),st.producto.n,name=>{ st.producto=META.productosVenta.find(p=>p.n===name); el.querySelector('#unidad').textContent=st.producto.u; toggleCacao(); el.querySelector('#precio').value=META.ultimoPrecio[precioKey()]||''; paint(); },
+      {gold:true,onAdd:v=>{ if(!META.productosVenta.find(p=>p.n===v)){META.productosVenta.push({n:v,u:'unidades'});saveMeta();} refreshProd(); }})); }
+  refreshProd();
+  el.querySelector('#estcacao').appendChild(chipGroup(ESTADOS_CACAO,st.estadoCacao,v=>{ st.estadoCacao=v; el.querySelector('#precio').value=META.ultimoPrecio[precioKey()]||''; paint(); },{gold:true}));
+  toggleCacao();
+  el.querySelector('#cant').oninput=paint; el.querySelector('#precio').oninput=paint; el.querySelector('#fecha').onchange=e=>st.fecha=e.target.value;
+  el.querySelector('#save').onclick=async()=>{ const c=num(el.querySelector('#cant').value),p=num(el.querySelector('#precio').value);
+    if(c<=0){ toast('Falta la cantidad'); return; }
+    const estado=esCacao(st.producto.n)?st.estadoCacao:'';
+    META.ultimoPrecio[precioKey()]=p; await saveMeta();
+    let fotoId=null; if(st.fotoBlob){ fotoId=nuevoId(); await put('fotos',{id:fotoId,blob:st.fotoBlob}); }
+    const nombreVenta = estado ? `${st.producto.n} (${estado})` : st.producto.n;
+    const reg={id:nuevoId(),fecha:st.fecha,tipo:esCacao(st.producto.n)?'Venta-Cacao':(st.producto.n.toLowerCase().includes('leche')?'Venta-Leche':'Venta-Otro'),nombreDesc:nombreVenta,detalle:`${c} ${st.producto.u}`,cantidad:c,unidad:st.producto.u,precio:p,total:p*c,categoria:'Ingreso',estadoCacao:estado,comprador:'',notas:'',semana:semanaDe(st.fecha),fotoId,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('registros',reg); doneToast(`Venta guardada: ${money(p*c)}`,'registros',reg); };
+  return el;
+};
+
+screens.gasto = () => {
+  const st={tipo:META.gastos[0],fecha:hoyISO(),fotoBlob:null,caja:false};
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Gasto</h1>
+    <button class="btn-outline" id="verhist" style="margin-bottom:4px">${icon('doc')} Ver gastos registrados</button>
+    <div class="field"><label>Tipo de gasto</label><div id="tipo"></div></div>
+    <div class="field"><label>Detalle</label><input type="text" id="detalle" placeholder="Ej: 1 rollo de alambre de 50 m"></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${st.fecha}"></div>
+    <div class="field"><label>Costo total</label><input type="text" id="costo" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field"><label>Origen de la plata</label>
+      <div class="swrow"><span class="gtx"><b>Salió de caja chica</b><small id="swsub">Descuenta del saldo de Washington</small></span><button type="button" class="sw" id="swcaja" aria-label="Caja chica"></button></div></div>
+    <div class="field"><label>Comprobante <span class="soft">· opcional</span></label><div id="foto"></div></div>
+    <button class="save rust" id="save">Guardar gasto</button></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas'); el.querySelector('#foto').appendChild(fotoField(st));
+  el.querySelector('#verhist').onclick=()=>show('movimientos','gastos');
+  function refreshTipo(){ const c=el.querySelector('#tipo'); c.innerHTML=''; c.appendChild(chipGroup(META.gastos,st.tipo,v=>st.tipo=v,{onAdd:v=>{ if(!META.gastos.includes(v)){META.gastos.push(v);saveMeta();} st.tipo=v; refreshTipo(); }})); }
+  refreshTipo(); el.querySelector('#fecha').onchange=e=>st.fecha=e.target.value;
+  const sw=el.querySelector('#swcaja');
+  (async()=>{ const sal=await saldoCaja(); el.querySelector('#swsub').textContent=`Saldo actual de caja chica: ${money(sal)}`; })();
+  sw.onclick=()=>{ st.caja=!st.caja; sw.classList.toggle('on',st.caja); };
+  el.querySelector('#save').onclick=async()=>{ const costo=num(el.querySelector('#costo').value); if(costo<=0){ toast('Falta el costo'); return; }
+    const detalle=el.querySelector('#detalle').value.trim()||st.tipo; let fotoId=null; if(st.fotoBlob){ fotoId=nuevoId(); await put('fotos',{id:fotoId,blob:st.fotoBlob}); }
+    const reg={id:nuevoId(),fecha:st.fecha,tipo:'Egreso',nombreDesc:st.tipo,detalle,cantidad:1,unidad:'',precio:costo,total:costo,categoria:'Egreso',caja:st.caja,comprador:'',notas:'',semana:semanaDe(st.fecha),fotoId,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('registros',reg);
+    if(st.caja){ const sal=await saldoCaja(); doneToast(`Gasto guardado. Queda ${money(sal)} en caja chica`,'registros',reg); }
+    else doneToast(`Gasto guardado: ${money(costo)}`,'registros',reg); };
+  return el;
+};
+
+screens.trabajador = () => {
+  const st={nombre:META.trabajadores[0],pago:META.formasPago[0],dias:new Set(),pagado:true};
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Trabajador</h1>
+    <button class="btn-outline" id="verhist" style="margin-bottom:4px">${icon('doc')} Ver jornales registrados</button>
+    <div class="field"><label>Trabajador</label><div id="who"></div></div>
+    <div class="field"><label>Forma de pago</label><div id="pago"></div></div>
+    <div class="field"><label>Días trabajados <span class="soft">· marca los que trabajó</span></label><div id="cal"></div><div id="calcount" style="margin:12px 4px 2px;font-size:.9rem;color:var(--secondary);text-align:center">Ningún día marcado</div></div>
+    <div class="field"><label>Estado</label><div id="estado"></div></div>
+    <div class="total-box"><span class="lbl">Pago total</span><span class="val" id="total">$0.00</span></div>
+    <button class="save" id="save">Guardar</button></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas');
+  el.querySelector('#verhist').onclick=()=>show('movimientos','trabajador');
+  const paint=()=>{ el.querySelector('#total').textContent=money((st.pago.p||0)*st.dias.size); el.querySelector('#calcount').innerHTML=st.dias.size?`<b>${st.dias.size}</b> día(s) marcado(s)`:'Ningún día marcado'; };
+  function refreshWho(){ const c=el.querySelector('#who'); c.innerHTML=''; c.appendChild(chipGroup(META.trabajadores,st.nombre,v=>st.nombre=v,{onAdd:v=>{ if(!META.trabajadores.includes(v)){META.trabajadores.push(v);saveMeta();} st.nombre=v; refreshWho(); }})); }
+  refreshWho();
+  el.querySelector('#pago').appendChild(chipGroup(META.formasPago.map(p=>p.editable?p.n:`${p.n} ($${p.p})`),st.pago.editable?st.pago.n:`${st.pago.n} ($${st.pago.p})`,label=>{ st.pago=META.formasPago.find(p=>(p.editable?p.n:`${p.n} ($${p.p})`)===label); mostrarMontoExtra(); paint(); },{gold:true}));
+  const extraBox=h(`<div class="field" id="extrabox" style="display:none"><label>Monto por día (tú lo pones)</label><input type="text" id="extramonto" inputmode="decimal" placeholder="0,00"></div>`);
+  el.querySelector('#pago').after(extraBox);
+  el.querySelector('#extramonto').oninput=e=>{ st.pago.p=num(e.target.value); paint(); };
+  function mostrarMontoExtra(){ const box=el.querySelector('#extrabox'); if(st.pago.editable){ box.style.display='block'; el.querySelector('#extramonto').value=st.pago.p||''; } else box.style.display='none'; }
+  el.querySelector('#estado').appendChild(chipGroup(['Pagado','Pendiente'],'Pagado',v=>st.pagado=(v==='Pagado')));
+  calendarPicker(el.querySelector('#cal'), st.dias, paint); paint();
+  el.querySelector('#save').onclick=async()=>{ if(st.dias.size===0){ toast('Marca al menos un día'); return; }
+    const dias=[...st.dias].sort(); const first=dias[0];
+    const reg={id:nuevoId(),fecha:first,tipo:'Trabajador',nombreDesc:st.nombre,detalle:`${st.pago.n} · ${dias.length} día(s)`+(st.pagado?'':' · PENDIENTE'),cantidad:dias.length,unidad:'días',precio:st.pago.p,total:st.pago.p*dias.length,categoria:'Egreso',pagado:st.pagado,comprador:'',notas:dias.join(', '),semana:semanaDe(first),fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('registros',reg); doneToast(`Guardado: ${st.nombre} · ${dias.length} día(s)`,'registros',reg); };
+  return el;
+};
+
+function calendarPicker(container, selectedSet, onChange){
+  let cur=new Date(); cur.setDate(1);
+  function iso(y,m,d){ return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+  function render(){ container.innerHTML='';
+    const wrap=h('<div class="cal" style="background:var(--surface);border-radius:16px;padding:12px 10px 6px;box-shadow:var(--shadow-card)"></div>');
+    const head=h(`<div style="display:flex;align-items:center;justify-content:space-between;padding:2px 6px 10px"><button type="button" style="width:40px;height:40px;border:none;background:transparent;color:var(--accent);border-radius:50%;font-size:1.5rem" data-prev>‹</button><span style="font-weight:700"></span><button type="button" style="width:40px;height:40px;border:none;background:transparent;color:var(--accent);border-radius:50%;font-size:1.5rem" data-next>›</button></div>`);
+    head.querySelector('span').textContent=MESES[cur.getMonth()]+' '+cur.getFullYear();
+    head.querySelector('[data-prev]').onclick=()=>{ cur.setMonth(cur.getMonth()-1); render(); };
+    head.querySelector('[data-next]').onclick=()=>{ cur.setMonth(cur.getMonth()+1); render(); };
+    wrap.appendChild(head);
+    const grid=h('<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>');
+    ['L','M','X','J','V','S','D'].forEach(d=>grid.appendChild(h(`<div style="text-align:center;font-size:.72rem;color:var(--secondary);font-weight:600;padding:2px 0 6px">${d}</div>`)));
+    const first=new Date(cur.getFullYear(),cur.getMonth(),1); const start=(first.getDay()+6)%7; const days=new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate();
+    for(let i=0;i<start;i++) grid.appendChild(h('<div></div>'));
+    for(let d=1;d<=days;d++){ const k=iso(cur.getFullYear(),cur.getMonth(),d);
+      const cell=h(`<button type="button" style="aspect-ratio:1;border:none;background:transparent;border-radius:50%;font-size:1.02rem;font-weight:500;color:var(--label)">${d}</button>`);
+      if(selectedSet.has(k)){ cell.style.background='var(--accent)'; cell.style.color='#fff'; cell.style.fontWeight='700'; }
+      cell.onclick=()=>{ if(selectedSet.has(k)){selectedSet.delete(k);cell.style.background='transparent';cell.style.color='var(--label)';cell.style.fontWeight='500';} else {selectedSet.add(k);cell.style.background='var(--accent)';cell.style.color='#fff';cell.style.fontWeight='700';} onChange(); };
+      grid.appendChild(cell); }
+    wrap.appendChild(grid); container.appendChild(wrap);
+  }
+  render();
+}
+
+screens.produccion = () => {
+  const st={producto:PRODUCTOS_PROD[0],fecha:hoyISO()};
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Producción</h1>
+    <p class="hint" style="margin:0 4px 8px">Registra lo que la finca <b>produjo</b> (cosechó), aparte de lo que vendiste.</p>
+    <div class="field"><label>Producto</label><div id="prod"></div></div>
+    <div class="row2"><div class="field"><label>Cantidad</label><input type="text" id="cant" inputmode="decimal" placeholder="0"></div>
+      <div class="field"><label>Unidad</label><input type="text" id="unidad" placeholder="libras / cajas / litros"></div></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${st.fecha}"></div>
+    <div class="field"><label>Parcela / lote <span class="soft">· opcional</span></label><input type="text" id="parcela" placeholder="Ej: lote alto"></div>
+    <div class="field"><label>Notas <span class="soft">· opcional</span></label><input type="text" id="notas" placeholder="Observaciones"></div>
+    <button class="save" id="save">Guardar producción</button></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas');
+  function refreshProd(){ const c=el.querySelector('#prod'); c.innerHTML=''; c.appendChild(chipGroup(PRODUCTOS_PROD,st.producto,v=>{st.producto=v; const u={Cacao:'libras',Verde:'cajas',Maqueño:'racimos',Leche:'litros'}[v]||''; el.querySelector('#unidad').value=u; })); }
+  refreshProd(); el.querySelector('#unidad').value='libras'; el.querySelector('#fecha').onchange=e=>st.fecha=e.target.value;
+  el.querySelector('#save').onclick=async()=>{ const c=num(el.querySelector('#cant').value); if(c<=0){ toast('Falta la cantidad'); return; }
+    const reg={id:nuevoId(),fecha:st.fecha,producto:st.producto,cantidad:c,unidad:el.querySelector('#unidad').value.trim(),parcela:el.querySelector('#parcela').value.trim(),notas:el.querySelector('#notas').value.trim(),semana:semanaDe(st.fecha),sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('produccion',reg); doneToast(`Producción guardada: ${c} ${reg.unidad} de ${reg.producto}`,'produccion',reg); };
+  return el;
+};
+
+function doneToast(msg,store,reg){ toast(msg, async()=>{ await borrarReg(store,reg.id); if(reg.fotoId) await del('fotos',reg.fotoId); actualizarSync(); });
+  show(TAB_OF[currentScreen]==='finanzas'?'finanzas':'home'); actualizarSync(); sincronizar(); }
+
+
+async function saldoCaja(){ const rec=await vivos('caja'); const regs=await vivos('registros');
+  const entra=rec.reduce((t,r)=>t+num(r.monto),0);
+  const sale=regs.filter(r=>r.caja===true&&r.categoria==='Egreso').reduce((t,r)=>t+num(r.total),0);
+  return Math.round((entra-sale)*100)/100; }
+
+screens.caja = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Caja chica</h1>
+    <p class="lsub">Plata entregada a Washington</p>
+    <div id="saldo"></div>
+    <button class="save" id="recargar">${icon('plus')} Entregar plata (recargar)</button>
+    <button class="btn-outline" id="gastar" style="margin-top:12px">${icon('receipt')} Registrar un gasto de la caja</button>
+    <div class="ghead">Movimientos</div><div id="lista"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas');
+  el.querySelector('#gastar').onclick=()=>show('gasto');
+  el.querySelector('#recargar').onclick=()=>recargarCaja();
+  (async()=>{
+    const sal=await saldoCaja();
+    el.querySelector('#saldo').appendChild(h(`<div class="cajasaldo"><div class="kl">SALDO DISPONIBLE</div><div class="kv ${sal>0?'pos':sal<0?'neg':''}">${money(sal)}</div></div>`));
+    if(sal<0) el.querySelector('#saldo').appendChild(h(`<div class="alert dgr">${icon('receipt')}<div>Se gastó más de lo entregado. Registra una recarga.</div></div>`));
+    const rec=await vivos('caja'); const regs=(await vivos('registros')).filter(r=>r.caja===true&&r.categoria==='Egreso');
+    const movs=rec.map(r=>({fecha:r.fecha,texto:r.nota||'Entrega de plata',monto:num(r.monto),tipo:'in',id:r.id,store:'caja',creado:r.creado||0}))
+      .concat(regs.map(r=>({fecha:r.fecha,texto:r.nombreDesc+(r.detalle&&r.detalle!==r.nombreDesc?' · '+r.detalle:''),monto:-num(r.total),tipo:'out',id:r.id,store:'registros',creado:r.creado||0})))
+      .sort((a,b)=>{ if(a.fecha!==b.fecha) return b.fecha.localeCompare(a.fecha);
+        if(a.tipo!==b.tipo) return a.tipo==='in'?1:-1;
+        return (b.creado||0)-(a.creado||0); });
+    const lista=el.querySelector('#lista');
+    if(!movs.length){ lista.appendChild(h(`<div class="empty">${icon('coin')}<div>Sin movimientos.<br>Toca "Entregar plata" para empezar.</div></div>`)); return; }
+    // saldo corriente calculado de viejo a nuevo
+    const asc=[...movs].reverse(); let run=0; const saldos={};
+    asc.forEach(m=>{ run=Math.round((run+m.monto)*100)/100; saldos[m.store+m.id]=run; });
+    const g=h('<div class="lgroup"></div>');
+    movs.forEach(m=>{ const row=h(`<div class="mov-caja"><span class="rdot ${m.tipo==='in'?'ing':'egr'}"></span><span class="gtx"><b>${m.texto}</b><small>${m.fecha} · queda ${money(saldos[m.store+m.id])}</small></span><span class="rec-amt ${m.tipo==='in'?'pos':'neg'}">${m.monto>=0?'+':'−'}${money(Math.abs(m.monto))}</span></div>`);
+      if(m.store==='caja'){ const x=h(`<button style="background:none;border:none;color:var(--danger);font-size:1.05rem;cursor:pointer;padding:0 2px">✕</button>`);
+        x.onclick=async()=>{ if(!confirm('¿Eliminar esta entrega?'))return; await borrarReg('caja',m.id); toast('Entrega eliminada'); show('caja'); }; row.appendChild(x); }
+      g.appendChild(row); });
+    lista.appendChild(g);
+  })();
+  return el;
+};
+function recargarCaja(){
+  const body=h(`<div>
+    <div class="field"><label>Monto entregado</label><input type="text" id="monto" inputmode="decimal" placeholder="0,00"></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${hoyISO()}"></div>
+    <div class="field"><label>Nota <span class="soft">· opcional</span></label><input type="text" id="nota" placeholder="Ej: entrega semanal"></div>
+    <p class="hint">Esto no es un gasto: solo pasa la plata a la caja. El gasto se cuenta cuando se usa.</p></div>`);
+  openModal('Entregar plata',body,{okText:'Guardar entrega',onOk:async close=>{
+    const m=num(body.querySelector('#monto').value); if(m<=0){ toast('Falta el monto'); return; }
+    const reg={id:nuevoId(),fecha:body.querySelector('#fecha').value,monto:m,nota:body.querySelector('#nota').value.trim(),destino:'Washington',semana:semanaDe(body.querySelector('#fecha').value),sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('caja',reg); const sal=await saldoCaja(); toast(`Entrega guardada. Saldo: ${money(sal)}`); actualizarSync(); sincronizar(); close(); show('caja'); }});
+}
+
+let movFiltro='todos';
+screens.movimientos = (filtro) => {
+  if(filtro) movFiltro=filtro;
+  const F=movFiltro;
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
+    <h1 class="ltitle">Movimientos</h1>
+    <p class="lsub">Toca cualquiera para editarlo o borrarlo</p>
+    <div class="seg">
+      <button data-f="todos" class="${F==='todos'?'sel':''}">Todos</button>
+      <button data-f="gastos" class="${F==='gastos'?'sel':''}">Gastos</button>
+      <button data-f="ventas" class="${F==='ventas'?'sel':''}">Ventas</button>
+      <button data-f="trabajador" class="${F==='trabajador'?'sel':''}">Jornales</button>
+    </div>
+    <div id="resumen"></div><div id="lista"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('finanzas');
+  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ movFiltro=b.dataset.f; show('movimientos'); });
+  (async()=>{ let regs=(await vivos('registros')).filter(r=>r.categoria!=='Plan');
+    if(F==='gastos') regs=regs.filter(r=>r.categoria==='Egreso'&&r.tipo!=='Trabajador');
+    else if(F==='ventas') regs=regs.filter(r=>r.categoria==='Ingreso');
+    else if(F==='trabajador') regs=regs.filter(r=>r.tipo==='Trabajador');
+    regs=regs.sort((a,b)=>b.creado-a.creado).slice(0,80);
+    const lista=el.querySelector('#lista');
+    if(!regs.length){ lista.appendChild(h(`<div class="empty">${icon('doc')}<div>No hay ${F==='todos'?'movimientos':F} todavía.</div></div>`)); return; }
+    const tot=regs.reduce((t,r)=>t+num(r.total),0);
+    el.querySelector('#resumen').appendChild(h(`<div class="card" style="padding:12px 16px"><div class="line" style="border:none;padding:0"><span class="k">${regs.length} registro(s)</span><span class="v">${money(tot)}</span></div></div>`));
+    const g=h('<div class="lgroup"></div>');
+    regs.forEach(r=>{ const cls=r.categoria==='Ingreso'?'ing':'egr'; const clip=(r.fotoId||r.comprobanteUrl)?' 📎':''; const cj=r.caja===true?' 💵':'';
+      const item=h(`<button class="grow tap"><span class="rdot ${cls}"></span><span class="gtx"><b>${r.nombreDesc}${clip}${cj}</b><small>${r.fecha} · ${r.detalle||''}</small></span><span class="rec-amt ${cls==='ing'?'pos':'neg'}">${r.categoria==='Ingreso'?'+':'−'}${money(r.total)}</span></button>`);
+      item.onclick=()=>abrirRegistro(r); g.appendChild(item); });
+    lista.appendChild(g);
+    lista.appendChild(h(`<p class="hint">💵 = salió de caja chica · 📎 = tiene comprobante</p>`)); })();
+  return el;
+};
+async function abrirRegistro(r){
+  const fotoRegSrc=await fotoSrc(r);
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Movimientos</button></div><h1 class="ltitle">Detalle</h1>
+    <div class="card">
+      <div class="line"><span class="k">Tipo</span><span class="v">${r.tipo}</span></div>
+      <div class="line"><span class="k">Descripción</span><span class="v">${r.nombreDesc}</span></div>
+      <div class="line"><span class="k">Detalle</span><span class="v">${r.detalle}</span></div>
+      <div class="line"><span class="k">Fecha</span><span class="v">${r.fecha}</span></div>
+      <div class="line"><span class="k">Total</span><span class="v">${money(r.total)}</span></div>
+      <div class="line"><span class="k">Estado</span><span class="v">${r.sync==='ok'?'<span class="pill-ok">Sincronizado</span>':'Pendiente'}</span></div>
+    </div><div id="fotozone"></div>
+    <button class="btn-outline" id="editcant">${icon('edit')} Editar este registro</button>
+    <button class="danger-link" id="delete">Eliminar registro</button></section>`);
+  el.querySelector('.back').onclick=()=>show('movimientos');
+  const fz=el.querySelector('#fotozone');
+  if(fotoRegSrc){ fz.appendChild(h(`<div class="foto-preview" style="display:block;margin-bottom:14px"><img src="${fotoRegSrc}" alt=""></div>`)); }
+  else { const add=h(`<div><button class="btn-outline" id="addfoto">${icon('gallery')} Agregar comprobante</button><input type="file" accept="image/*" hidden id="lateinput"></div>`); fz.appendChild(add);
+    const inp=el.querySelector('#lateinput'); el.querySelector('#addfoto').onclick=()=>inp.click();
+    inp.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; let b; try{b=await comprimir(f);}catch{b=f;} const fid=nuevoId(); await put('fotos',{id:fid,blob:b}); r.fotoId=fid; r.sync='pend'; r.modificado=Date.now(); await put('registros',r); toast('Comprobante agregado'); actualizarSync(); sincronizar(); abrirRegistro(r); }; }
+  el.querySelector('#editcant').onclick=()=>editarRegistro(r);
+  el.querySelector('#delete').onclick=async()=>{ if(!confirm('¿Eliminar este registro?'))return; await borrarReg('registros',r.id); toast('Registro eliminado'); actualizarSync(); show('movimientos'); };
+  currentScreen='movimientos'; view.innerHTML=''; view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){}
+}
+
+
+function editarRegistro(r){
+  const esGasto = r.categoria==='Egreso' && r.tipo!=='Trabajador';
+  const esVenta = r.categoria==='Ingreso';
+  let body;
+  if(esGasto){
+    body=h(`<div>
+      <div class="field"><label>Tipo de gasto</label><select id="etipo">${opts(META.gastos.includes(r.nombreDesc)?META.gastos:[r.nombreDesc].concat(META.gastos), r.nombreDesc)}</select></div>
+      <div class="field"><label>Detalle</label><input type="text" id="edet"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="efec" value="${r.fecha}"></div>
+      <div class="field"><label>Costo total</label><input type="text" id="ecosto" inputmode="decimal"></div>
+      <div class="field"><label>Origen de la plata</label>
+        <div class="swrow"><span class="gtx"><b>Salió de caja chica</b><small>Descuenta del saldo</small></span><button type="button" class="sw${r.caja?' on':''}" id="ecaja"></button></div></div></div>`);
+    body.querySelector('#edet').value=r.detalle||''; body.querySelector('#ecosto').value=r.total;
+    let cj=!!r.caja; const sw=body.querySelector('#ecaja'); sw.onclick=()=>{ cj=!cj; sw.classList.toggle('on',cj); };
+    openModal('Editar gasto',body,{onOk:async close=>{
+      const c=num(body.querySelector('#ecosto').value); if(c<=0){ toast('Falta el costo'); return; }
+      r.nombreDesc=body.querySelector('#etipo').value; r.detalle=body.querySelector('#edet').value.trim()||r.nombreDesc;
+      r.fecha=body.querySelector('#efec').value; r.semana=semanaDe(r.fecha);
+      r.cantidad=1; r.precio=c; r.total=c; r.caja=cj; r.sync='pend'; r.modificado=Date.now();
+      await put('registros',r); toast('Gasto corregido'); actualizarSync(); sincronizar(); close(); abrirRegistro(r); }});
+  } else if(esVenta){
+    const eraCacao = esCacao(r.nombreDesc) || !!r.estadoCacao;
+    body=h(`<div>
+      <div class="field"><label>Producto</label><input type="text" id="enom"></div>
+      ${eraCacao?`<div class="field"><label>Estado del cacao</label><div id="eest"></div></div>`:''}
+      <div class="field"><label>Fecha</label><input type="date" id="efec" value="${r.fecha}"></div>
+      <div class="row2"><div class="field"><label>Cantidad</label><input type="text" id="ec" inputmode="decimal"></div>
+        <div class="field"><label>Precio por unidad</label><input type="text" id="ep" inputmode="decimal"></div></div>
+      <div class="total-box"><span class="lbl">Total</span><span class="val" id="etot">${money(r.total)}</span></div></div>`);
+    // el nombre puede venir como "Cacao en libras (Seco)": mostrar limpio
+    const nombreBase = (r.nombreDesc||'').replace(/\s*\(.*\)\s*$/,'');
+    body.querySelector('#enom').value=nombreBase; body.querySelector('#ec').value=r.cantidad; body.querySelector('#ep').value=r.precio;
+    let estSel = r.estadoCacao||ESTADOS_CACAO[2];
+    if(eraCacao){ body.querySelector('#eest').appendChild(chipGroup(ESTADOS_CACAO,estSel,v=>estSel=v,{gold:true})); }
+    const rep=()=>{ body.querySelector('#etot').textContent=money(num(body.querySelector('#ec').value)*num(body.querySelector('#ep').value)); };
+    body.querySelector('#ec').oninput=rep; body.querySelector('#ep').oninput=rep;
+    openModal('Editar venta',body,{onOk:async close=>{
+      const c=num(body.querySelector('#ec').value); if(c<=0){ toast('Falta la cantidad'); return; }
+      const base=body.querySelector('#enom').value.trim()||nombreBase; r.fecha=body.querySelector('#efec').value; r.semana=semanaDe(r.fecha);
+      r.cantidad=c; r.precio=num(body.querySelector('#ep').value); r.total=r.cantidad*r.precio;
+      if(eraCacao){ r.estadoCacao=estSel; r.nombreDesc=`${base} (${estSel})`; } else { r.nombreDesc=base; }
+      r.detalle=`${c} ${r.unidad||''}`; r.comprador=''; r.sync='pend'; r.modificado=Date.now();
+      await put('registros',r); toast('Venta corregida'); actualizarSync(); sincronizar(); close(); abrirRegistro(r); }});
+  } else {
+    body=h(`<div>
+      <div class="field"><label>Trabajador</label><input type="text" id="enom"></div>
+      <div class="field"><label>Fecha</label><input type="date" id="efec" value="${r.fecha}"></div>
+      <div class="row2"><div class="field"><label>Días</label><input type="text" id="ec" inputmode="decimal"></div>
+        <div class="field"><label>Pago por día</label><input type="text" id="ep" inputmode="decimal"></div></div>
+      <div class="total-box"><span class="lbl">Total</span><span class="val" id="etot">${money(r.total)}</span></div></div>`);
+    body.querySelector('#enom').value=r.nombreDesc||''; body.querySelector('#ec').value=r.cantidad; body.querySelector('#ep').value=r.precio;
+    const rep=()=>{ body.querySelector('#etot').textContent=money(num(body.querySelector('#ec').value)*num(body.querySelector('#ep').value)); };
+    body.querySelector('#ec').oninput=rep; body.querySelector('#ep').oninput=rep;
+    openModal('Editar jornal',body,{onOk:async close=>{
+      const c=num(body.querySelector('#ec').value); if(c<=0){ toast('Faltan los días'); return; }
+      r.nombreDesc=body.querySelector('#enom').value.trim()||r.nombreDesc; r.fecha=body.querySelector('#efec').value; r.semana=semanaDe(r.fecha);
+      r.cantidad=c; r.precio=num(body.querySelector('#ep').value); r.total=r.cantidad*r.precio; r.sync='pend'; r.modificado=Date.now();
+      await put('registros',r); toast('Jornal corregido'); actualizarSync(); sincronizar(); close(); abrirRegistro(r); }});
+  }
+}
+
+screens.animales = () => {
+  const el=h(`<section class="screen"><h1 class="ltitle">Animales</h1>
+    <div class="ghead rowh"><span>Inventario ganadero</span><span class="addlink" id="addanimal">+ Agregar</span></div>
+    <div id="lista"></div>
+    <div class="ghead rowh" style="margin-top:22px"><span>Producción de leche</span><span class="addlink" id="addleche">+ Registrar</span></div>
+    <div id="lecheresumen"></div></section>`);
+  el.querySelector('#addanimal').onclick=()=>editarAnimal(null);
+  el.querySelector('#addleche').onclick=()=>show('leche');
+  (async()=>{ const animales=(await vivos('animales')).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')); const lista=el.querySelector('#lista');
+    if(!animales.length){ lista.appendChild(h(`<div class="empty">${icon('cow')}<div>Aún no hay animales.<br>Toca "+ Agregar" para registrar la primera vaca.</div></div>`)); }
+    else{ const g=h('<div class="lgroup inset"></div>');
+      animales.forEach(a=>{ const bcls=a.estado==='Gestante'?'b-gold':a.estado==='Lactando'?'b-green':'b-slate';
+        const item=h(`<button class="grow tap"><span class="avatar-ph">${icon('cow')}</span><span class="gtx"><b>${a.nombre||'Sin nombre'}</b><small>${a.raza||''}${a.sexo?' · '+a.sexo:''}</small></span><span class="badge-s ${bcls}">${a.estado||'—'}</span></button>`);
+        (async()=>{ const src=await fotoSrc(a); if(src){ const img=h(`<img class="avatar" alt="" src="${src}">`); const ph=item.querySelector('.avatar-ph'); if(ph)ph.replaceWith(img); } })();
+        item.onclick=()=>detalleAnimal(a); g.appendChild(item); });
+      lista.appendChild(g); }
+    const leche=await vivos('leche'); const ym=ymActual(); const litrosMes=leche.filter(r=>ymDe(r.fecha)===ym).reduce((s,r)=>s+num(r.litros),0);
+    const ult=leche.sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,5);
+    const lr=el.querySelector('#lecheresumen');
+    lr.appendChild(h(`<div class="kpi wide" style="margin-bottom:12px"><div><div class="kl">Leche este mes</div><div class="kv">${litrosMes} L</div></div>${tile('milk','var(--navy)')}</div>`));
+    if(ult.length){ const g2=h('<div class="lgroup"></div>'); ult.forEach(r=>{ const row=h(`<div class="grow"><span class="gtx"><b>${r.litros} L</b><small>${r.fecha}${r.destino?' · '+r.destino:''}</small></span></div>`); g2.appendChild(row); }); lr.appendChild(g2); }
+  })();
+  return el;
+};
+function editarAnimal(a){
+  const isNew=!a; a=a||{id:nuevoId(),nombre:'',sexo:'Hembra',raza:'Mestiza',nacimiento:'',estado:'Lactando',ultimoParto:'',proxParto:'',notas:'',activo:true,fotoId:null,sync:'pend',modificado:Date.now(),creado:Date.now()};
+  const st={fotoBlob:null,quitar:false};
+  const body=h(`<div>
+    <div class="foto-circ"><span class="bigph" id="fotoslot">${icon('cow')}</span><button type="button" class="lnk" id="fotolnk">Agregar foto</button><input type="file" accept="image/*" hidden id="fotoinp"></div>
+    <div class="field"><label>Nombre o número</label><input type="text" id="nombre" placeholder="Ej: Vaca 001 / Lucera"></div>
+    <div class="row2"><div class="field"><label>Sexo</label><select id="sexo">${opts(['Hembra','Macho'],a.sexo)}</select></div>
+      <div class="field"><label>Raza</label><select id="raza">${opts(RAZAS,a.raza)}</select></div></div>
+    <div class="row2"><div class="field"><label>Nacimiento</label><input type="date" id="nac" value="${a.nacimiento||''}"></div>
+      <div class="field"><label>Estado</label><select id="estado">${opts(ESTADOS_ANIMAL,a.estado)}</select></div></div>
+    <div class="row2"><div class="field"><label>Último parto</label><input type="date" id="up" value="${a.ultimoParto||''}"></div>
+      <div class="field"><label>Próximo parto</label><input type="date" id="pp" value="${a.proxParto||''}"></div></div>
+    <div class="field"><label>Notas</label><input type="text" id="notas" placeholder="Observaciones"></div></div>`);
+  body.querySelector('#nombre').value=a.nombre||''; body.querySelector('#notas').value=a.notas||'';
+  let slot=body.querySelector('#fotoslot'); const lnk=body.querySelector('#fotolnk'), inp=body.querySelector('#fotoinp');
+  function pintarFoto(src){ if(src){ const img=h(`<img class="big" alt="" src="${src}">`); slot.replaceWith(img); slot=img; lnk.textContent='Cambiar foto'; }
+    else { const ph=h(`<span class="bigph">${icon('cow')}</span>`); slot.replaceWith(ph); slot=ph; lnk.textContent='Agregar foto'; } }
+  (async()=>{ const src=await fotoSrc(a); if(src) pintarFoto(src); })();
+  lnk.onclick=()=>inp.click();
+  inp.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; try{ st.fotoBlob=await comprimir(f,900,0.72); }catch{ st.fotoBlob=f; } st.quitar=false; pintarFoto(blobURL(st.fotoBlob)); };
+  openModal(isNew?'Nuevo animal':'Editar animal',body,{onOk:async close=>{
+    a.nombre=body.querySelector('#nombre').value.trim(); a.sexo=body.querySelector('#sexo').value; a.raza=body.querySelector('#raza').value;
+    a.nacimiento=body.querySelector('#nac').value; a.estado=body.querySelector('#estado').value; a.ultimoParto=body.querySelector('#up').value;
+    a.proxParto=body.querySelector('#pp').value; a.notas=body.querySelector('#notas').value.trim(); a.sync='pend'; a.modificado=Date.now();
+    if(!a.nombre){ toast('Falta el nombre'); return; }
+    if(st.fotoBlob){ const fid=a.fotoId||nuevoId(); await put('fotos',{id:fid,blob:st.fotoBlob}); a.fotoId=fid; }
+    await put('animales',a); toast(isNew?'Animal agregado':'Animal actualizado'); actualizarSync(); sincronizar(); close(); if(currentScreen==='animales')show('animales'); else detalleAnimal(a); }});
+}
+async function detalleAnimal(a){
+  const salud=(await vivos('salud')).filter(s=>s.animalId===a.id).sort((x,y)=>y.fecha.localeCompare(x.fecha));
+  const fotoAnSrc=await fotoSrc(a);
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Animales</button></div>
+    ${fotoAnSrc?`<img class="hero-foto" alt="${a.nombre||''}" src="${fotoAnSrc}">`:''}
+    <h1 class="ltitle">${a.nombre||'Animal'}</h1>
+    <div class="card">
+      <div class="line"><span class="k">Sexo</span><span class="v">${a.sexo||'—'}</span></div>
+      <div class="line"><span class="k">Raza</span><span class="v">${a.raza||'—'}</span></div>
+      <div class="line"><span class="k">Nacimiento</span><span class="v">${a.nacimiento||'—'}</span></div>
+      <div class="line"><span class="k">Estado</span><span class="v">${a.estado||'—'}</span></div>
+      <div class="line"><span class="k">Último parto</span><span class="v">${a.ultimoParto||'—'}</span></div>
+      <div class="line"><span class="k">Próximo parto</span><span class="v">${a.proxParto||'—'}</span></div>
+      ${a.notas?`<div class="line"><span class="k">Notas</span><span class="v">${a.notas}</span></div>`:''}
+    </div>
+    <button class="btn-outline" id="edit">${icon('edit')} Editar animal</button>
+    <div class="ghead rowh"><span>Salud (vacunas / tratamientos)</span><span class="addlink" id="addsalud">+ Agregar</span></div>
+    <div id="saludlista"></div>
+    <div class="ghead">Historial de fotos</div>
+    <div id="galeria"></div>
+    <button class="danger-link" id="del">Eliminar animal</button></section>`);
+  el.querySelector('.back').onclick=()=>show('animales');
+  el.querySelector('#edit').onclick=()=>editarAnimal(a);
+  el.querySelector('#addsalud').onclick=()=>agregarSalud(a);
+  if(!fotoAnSrc){ const bf=h(`<button class="btn-outline">${icon('gallery')} Agregar foto de la vaca</button>`);
+    const fi=h('<input type="file" accept="image/*" hidden>');
+    bf.onclick=()=>fi.click();
+    fi.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; let b; try{ b=await comprimir(f,900,0.72); }catch{ b=f; }
+      const fid=a.fotoId||nuevoId(); await put('fotos',{id:fid,blob:b}); a.fotoId=fid; a.sync='pend'; a.modificado=Date.now(); await put('animales',a);
+      toast('Foto agregada'); actualizarSync(); sincronizar(); detalleAnimal(a); };
+    el.querySelector('#edit').after(fi); el.querySelector('#edit').after(bf); }
+  const sl=el.querySelector('#saludlista');
+  if(!salud.length){ sl.appendChild(h(`<div class="hint" style="text-align:center;padding:14px">Sin registros de salud todavía.</div>`)); }
+  else{ const g=h('<div class="lgroup"></div>'); salud.forEach(s=>{ const row=h(`<div class="grow"><span class="gtx"><b>${s.tipo}${s.producto?' · '+s.producto:''}</b><small>${s.fecha}${s.nota?' · '+s.nota:''}</small></span><button style="background:none;color:var(--danger);border:none;font-size:1.1rem;cursor:pointer">✕</button></div>`);
+    row.querySelector('button').onclick=async()=>{ if(!confirm('¿Eliminar este registro?'))return; await borrarReg('salud',s.id); detalleAnimal(a); }; g.appendChild(row); }); sl.appendChild(g); }
+  pintarGaleria(el.querySelector('#galeria'), a);
+  el.querySelector('#del').onclick=async()=>{ if(!confirm('¿Eliminar este animal? Se borran también sus fotos.'))return;
+    const gs=(await vivos('galeria')).filter(x=>x.animalId===a.id);
+    for(const gg of gs){ await borrarReg('galeria',gg.id); }
+    await borrarReg('animales',a.id); toast('Animal eliminado'); show('animales'); };
+  currentScreen='animal'; view.innerHTML=''; view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){}
+}
+
+async function pintarGaleria(cont, a){
+  cont.innerHTML='';
+  const items=(await vivos('galeria')).filter(x=>x.animalId===a.id).sort((x,y)=>y.fecha.localeCompare(x.fecha));
+  const grid=h('<div class="galgrid"></div>');
+  const add=h(`<button type="button" class="galadd">${icon('gallery')}<span>Agregar</span></button>`);
+  const inp=h('<input type="file" accept="image/*" hidden>');
+  add.onclick=()=>inp.click();
+  inp.onchange=async e=>{ const f=e.target.files[0]; if(!f)return; let b; try{ b=await comprimir(f,1280,0.7); }catch{ b=f; }
+    nuevaFotoGaleria(a,b,cont); inp.value=''; };
+  grid.appendChild(add); grid.appendChild(inp);
+  for(const it of items){
+    const cell=h(`<button type="button" class="galcell"><span class="cap">${it.fecha.slice(5).replace('-','/')}</span></button>`);
+    const src=await fotoSrc(it);
+    if(src){ const img=h(`<img alt="${it.nota||''}" src="${src}">`); cell.insertBefore(img,cell.firstChild); }
+    cell.onclick=()=>verFotoGrande(it,src,a,cont);
+    grid.appendChild(cell);
+  }
+  cont.appendChild(grid);
+  if(!items.length) cont.appendChild(h(`<p class="hint">Guarda fotos de cómo va la vaca: crecimiento, heridas, preñez. Cada una queda con su fecha.</p>`));
+}
+function nuevaFotoGaleria(a, blob, cont){
+  const body=h(`<div>
+    <div class="foto-circ"><img class="big" style="width:100%;height:auto;max-height:260px;border-radius:14px;object-fit:cover" alt="" src="${blobURL(blob)}"></div>
+    <div class="field"><label>Fecha</label><input type="date" id="gf" value="${hoyISO()}"></div>
+    <div class="field"><label>Nota <span class="soft">· opcional</span></label><input type="text" id="gn" placeholder="Ej: herida en la pata / se ve gorda"></div></div>`);
+  openModal('Nueva foto',body,{okText:'Guardar foto',onOk:async close=>{
+    const fid=nuevoId(); await put('fotos',{id:fid,blob});
+    const reg={id:nuevoId(),animalId:a.id,fotoId:fid,fecha:body.querySelector('#gf').value||hoyISO(),nota:body.querySelector('#gn').value.trim(),sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('galeria',reg); toast('Foto guardada'); actualizarSync(); sincronizar(); close(); pintarGaleria(cont,a); }});
+}
+function verFotoGrande(it, src, a, cont){
+  const lb=h(`<div class="lightbox"><div class="lbtop"><button class="lbx">✕</button></div>
+    <div class="lbimg">${src?`<img alt="" src="${src}">`:'<span style="color:#888">Sin imagen</span>'}</div>
+    <div class="lbinfo"><b>${it.nota||'Sin nota'}</b><small>${it.fecha}</small><button class="lbdel">Eliminar foto</button></div></div>`);
+  document.body.appendChild(lb);
+  const cerrar=()=>lb.remove();
+  lb.querySelector('.lbx').onclick=cerrar;
+  lb.querySelector('.lbdel').onclick=async()=>{ if(!confirm('¿Eliminar esta foto?'))return;
+    await borrarReg('galeria',it.id); toast('Foto eliminada'); cerrar(); pintarGaleria(cont,a); };
+}
+
+function agregarSalud(a){
+  const body=h(`<div>
+    <div class="field"><label>Tipo</label><select id="tipo">${opts(TIPO_SALUD,'Vacuna')}</select></div>
+    <div class="field"><label>Producto / medicina</label><input type="text" id="prod" placeholder="Ej: Vacuna carbunco"></div>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${hoyISO()}"></div>
+    <div class="field"><label>Nota <span class="soft">· opcional</span></label><input type="text" id="nota" placeholder="Dosis, observación…"></div></div>`);
+  openModal('Registro de salud',body,{onOk:async close=>{ const reg={id:nuevoId(),animalId:a.id,tipo:body.querySelector('#tipo').value,producto:body.querySelector('#prod').value.trim(),fecha:body.querySelector('#fecha').value,nota:body.querySelector('#nota').value.trim(),sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('salud',reg); toast('Registro de salud guardado'); actualizarSync(); sincronizar(); close(); detalleAnimal(a); }});
+}
+
+screens.leche = () => {
+  const st={fecha:hoyISO(),destino:'Producida',animalId:''};
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Animales</button></div>
+    <h1 class="ltitle">Leche</h1>
+    <div class="field"><label>Fecha</label><input type="date" id="fecha" value="${st.fecha}"></div>
+    <div class="field"><label>Litros</label><input type="text" id="litros" inputmode="decimal" placeholder="0"></div>
+    <div class="field"><label>Destino</label><div id="destino"></div></div>
+    <button class="save" id="save">Guardar leche</button>
+    <div class="ghead">Últimos registros</div><div id="lista"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('animales'); el.querySelector('#fecha').onchange=e=>st.fecha=e.target.value;
+  el.querySelector('#destino').appendChild(chipGroup(['Producida','Vendida','Consumida'],'Producida',v=>st.destino=v));
+  async function refreshLista(){ const leche=(await vivos('leche')).sort((a,b)=>b.fecha.localeCompare(a.fecha)).slice(0,8); const lista=el.querySelector('#lista'); lista.innerHTML='';
+    if(!leche.length){ lista.appendChild(h(`<div class="hint" style="text-align:center;padding:10px">Sin registros aún.</div>`)); return; }
+    const g=h('<div class="lgroup"></div>'); leche.forEach(r=>{ const row=h(`<div class="grow"><span class="gtx"><b>${r.litros} L</b><small>${r.fecha} · ${r.destino}</small></span><button style="background:none;color:var(--danger);border:none;font-size:1.1rem;cursor:pointer">✕</button></div>`);
+      row.querySelector('button').onclick=async()=>{ await borrarReg('leche',r.id); refreshLista(); }; g.appendChild(row); }); lista.appendChild(g); }
+  refreshLista();
+  el.querySelector('#save').onclick=async()=>{ const l=num(el.querySelector('#litros').value); if(l<=0){ toast('Faltan los litros'); return; }
+    const reg={id:nuevoId(),fecha:st.fecha,litros:l,destino:st.destino,animalId:st.animalId,semana:semanaDe(st.fecha),sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('leche',reg); toast(`Leche guardada: ${l} L`); actualizarSync(); sincronizar(); el.querySelector('#litros').value=''; refreshLista(); };
+  return el;
+};
+
+screens.inventario = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div>
+    <h1 class="ltitle">Inventario</h1>
+    <div class="ghead rowh"><span>Insumos y medicinas</span><span class="addlink" id="add">+ Agregar</span></div>
+    <div id="lista"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('mas'); el.querySelector('#add').onclick=()=>editarInsumo(null);
+  (async()=>{ const inv=(await vivos('inventario')).sort((a,b)=>(a.categoria||'').localeCompare(b.categoria||'')||(a.nombre||'').localeCompare(b.nombre||'')); const lista=el.querySelector('#lista');
+    if(!inv.length){ lista.appendChild(h(`<div class="empty">${icon('box')}<div>Inventario vacío.<br>Agrega medicinas, alimentos o materiales.</div></div>`)); return; }
+    const hoy=hoyISO(); const cats={};
+    inv.forEach(i=>{ (cats[i.categoria]=cats[i.categoria]||[]).push(i); });
+    Object.keys(cats).forEach(cat=>{ lista.appendChild(h(`<div class="ghead">${cat}</div>`)); const g=h('<div class="lgroup"></div>');
+      cats[cat].forEach(i=>{ let venc=''; if(i.vencimiento){ const d=diasEntre(hoy,i.vencimiento); venc = d<0?`<span class="badge-s b-danger">Vencido</span>`:d<=30?`<span class="badge-s b-gold">Vence pronto</span>`:''; }
+        const item=h(`<button class="grow tap"><span class="gtx"><b>${i.nombre}</b><small>${i.paraQue||'—'}${i.vencimiento?' · vence '+i.vencimiento:''}</small></span>${venc}<span class="gval">${i.stock||0} ${i.unidad||''}</span></button>`);
+        item.onclick=()=>editarInsumo(i); g.appendChild(item); });
+      lista.appendChild(g); });
+  })();
+  return el;
+};
+function editarInsumo(i){
+  const isNew=!i; i=i||{id:nuevoId(),nombre:'',categoria:'Medicina',paraQue:'',stock:0,unidad:'',vencimiento:'',notas:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+  const body=h(`<div>
+    <div class="field"><label>Nombre</label><input type="text" id="nombre" placeholder="Ej: Vacuna carbunco"></div>
+    <div class="field"><label>Categoría</label><select id="cat">${opts(CAT_INV,i.categoria)}</select></div>
+    <div class="field"><label>¿Para qué sirve?</label><input type="text" id="para" placeholder="Ej: previene el carbunco en el ganado"></div>
+    <div class="row2"><div class="field"><label>Stock</label><input type="text" id="stock" inputmode="decimal"></div>
+      <div class="field"><label>Unidad</label><input type="text" id="unidad" placeholder="frascos / kg / u"></div></div>
+    <div class="field"><label>Vencimiento <span class="soft">· opcional</span></label><input type="date" id="venc" value="${i.vencimiento||''}"></div></div>`);
+  body.querySelector('#nombre').value=i.nombre||''; body.querySelector('#para').value=i.paraQue||''; body.querySelector('#stock').value=i.stock||''; body.querySelector('#unidad').value=i.unidad||'';
+  const m=openModal(isNew?'Nuevo insumo':'Editar insumo',body,{onOk:async close=>{ i.nombre=body.querySelector('#nombre').value.trim(); i.categoria=body.querySelector('#cat').value; i.paraQue=body.querySelector('#para').value.trim(); i.stock=num(body.querySelector('#stock').value); i.unidad=body.querySelector('#unidad').value.trim(); i.vencimiento=body.querySelector('#venc').value; i.sync='pend'; i.modificado=Date.now();
+    if(!i.nombre){ toast('Falta el nombre'); return; } await put('inventario',i); toast(isNew?'Insumo agregado':'Insumo actualizado'); actualizarSync(); sincronizar(); close(); show('inventario'); }});
+  if(!isNew){ const extra=h(`<button class="danger-link" style="margin-top:10px">Eliminar insumo</button>`); extra.onclick=async()=>{ if(!confirm('¿Eliminar?'))return; await borrarReg('inventario',i.id); toast('Insumo eliminado'); m.close(); show('inventario'); }; body.appendChild(extra); }
+}
+
+let anaPeriodo='mes'; let anaMes=ymActual(); let anaAnio=new Date().getFullYear();
+screens.analisis = () => {
+  const el=h(`<section class="screen"><h1 class="ltitle">Análisis</h1>
+    <div class="seg">
+      <button data-p="dia" class="${anaPeriodo==='dia'?'sel':''}">Hoy</button>
+      <button data-p="semana" class="${anaPeriodo==='semana'?'sel':''}">Semana</button>
+      <button data-p="mes" class="${anaPeriodo==='mes'?'sel':''}">Mes</button>
+      <button data-p="anio" class="${anaPeriodo==='anio'?'sel':''}">Año</button></div>
+    <div id="nav"></div><div id="cont"></div></section>`);
+  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ anaPeriodo=b.dataset.p; show('analisis'); });
+  const nav=el.querySelector('#nav');
+  if(anaPeriodo==='mes'){ const n=h(`<div class="navsel"><button data-prev>‹</button><b>${ymLabel(anaMes)}</b><button data-next>›</button></div>`);
+    n.querySelector('[data-prev]').onclick=()=>{ anaMes=ymShift(anaMes,-1); show('analisis'); }; n.querySelector('[data-next]').onclick=()=>{ anaMes=ymShift(anaMes,1); show('analisis'); }; nav.appendChild(n); }
+  if(anaPeriodo==='anio'){ const n=h(`<div class="navsel"><button data-prev>‹</button><b>${anaAnio}</b><button data-next>›</button></div>`);
+    n.querySelector('[data-prev]').onclick=()=>{ anaAnio--; show('analisis'); }; n.querySelector('[data-next]').onclick=()=>{ anaAnio++; show('analisis'); }; nav.appendChild(n); }
+  (async()=>{ const cont=el.querySelector('#cont'); const regs=await vivos('registros'); const prod=await vivos('produccion'); const leche=await vivos('leche'); const hoy=hoyISO();
+    const enP=r=> anaPeriodo==='dia'?r.fecha===hoy : anaPeriodo==='semana'?mismaSemana(r.fecha,hoy) : anaPeriodo==='mes'?ymDe(r.fecha)===anaMes : String(parseFecha(r.fecha).getFullYear())===String(anaAnio);
+    const filt=regs.filter(r=>(r.categoria==='Ingreso'||r.categoria==='Egreso')&&enP(r));
+    if(!filt.length&&!prod.filter(enP).length&&!leche.filter(enP).length){ cont.appendChild(h(`<div class="empty">${icon('chart')}<div>Sin registros en este periodo.</div></div>`)); return; }
+    const ing={},egr={}; let mano=0,tI=0,tE=0;
+    filt.forEach(r=>{ if(r.categoria==='Ingreso'){ ing[r.nombreDesc]=(ing[r.nombreDesc]||0)+r.total; tI+=r.total; } else { tE+=r.total; if(r.tipo==='Trabajador')mano+=r.total; else egr[r.nombreDesc]=(egr[r.nombreDesc]||0)+r.total; } });
+    const neta=tI-tE; const margen=tI>0?Math.round(neta/tI*100):0;
+    cont.appendChild(h(`<div class="card"><div class="bigline"><span class="k">Ganancia neta</span><span class="v ${neta>=0?'pos':'neg'}">${money(neta)}</span></div></div>`));
+    if(anaPeriodo==='mes'){ const prev=ymShift(anaMes,-1); let pI=0,pE=0; regs.forEach(r=>{ if(ymDe(r.fecha)===prev){ if(r.categoria==='Ingreso')pI+=r.total; else if(r.categoria==='Egreso')pE+=r.total; } }); const pNeta=pI-pE; const delta=neta-pNeta;
+      cont.appendChild(h(`<div class="card"><div class="line"><span class="k">Mes anterior (${ymLabel(prev)})</span><span class="v">${money(pNeta)}</span></div><div class="line"><span class="k">Diferencia</span><span class="v ${delta>=0?'pos':'neg'}">${delta>=0?'+':''}${money(delta)}</span></div><div class="line"><span class="k">Margen</span><span class="v">${margen}%</span></div></div>`)); }
+    const cI=h('<div class="card"><h3>INGRESOS</h3></div>'); Object.keys(ing).forEach(k=>cI.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${money(ing[k])}</span></div>`)));
+    cI.appendChild(h(`<div class="line"><span class="k"><b>Total ingresos</b></span><span class="v">${money(tI)}</span></div>`)); cont.appendChild(cI);
+    const cE=h('<div class="card"><h3>EGRESOS</h3></div>'); if(mano)cE.appendChild(h(`<div class="line"><span class="k">Mano de obra</span><span class="v">${money(mano)}</span></div>`));
+    Object.keys(egr).forEach(k=>cE.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${money(egr[k])}</span></div>`)));
+    cE.appendChild(h(`<div class="line"><span class="k"><b>Total egresos</b></span><span class="v">${money(tE)}</span></div>`)); cont.appendChild(cE);
+    const prP=prod.filter(enP); if(prP.length){ const byProd={}; prP.forEach(r=>{ const k=r.producto+' ('+(r.unidad||'')+')'; byProd[k]=(byProd[k]||0)+num(r.cantidad); });
+      const cP=h('<div class="card"><h3>PRODUCCIÓN</h3></div>'); Object.keys(byProd).forEach(k=>cP.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${byProd[k]}</span></div>`))); cont.appendChild(cP); }
+    // Cacao vendido por estado (baba / semi seco / seco)
+    const cacaoVentas=filt.filter(r=>r.categoria==='Ingreso'&&r.estadoCacao);
+    if(cacaoVentas.length){ const porEstado={}; const platEstado={};
+      cacaoVentas.forEach(r=>{ const e=r.estadoCacao; porEstado[e]=(porEstado[e]||0)+num(r.cantidad); platEstado[e]=(platEstado[e]||0)+num(r.total); });
+      const cC=h('<div class="card"><h3>CACAO VENDIDO POR ESTADO</h3></div>');
+      ESTADOS_CACAO.forEach(e=>{ if(porEstado[e]) cC.appendChild(h(`<div class="line"><span class="k">${e}</span><span class="v">${porEstado[e]} lb · ${money(platEstado[e])}</span></div>`)); });
+      cont.appendChild(cC); }
+    const lP=leche.filter(enP); if(lP.length){ const litros=lP.reduce((s,r)=>s+num(r.litros),0); cont.appendChild(h(`<div class="card"><h3>LECHE</h3><div class="line"><span class="k">Total litros</span><span class="v">${litros} L</span></div></div>`)); }
+    cont.appendChild(graficoBarras(filt));
+  })();
+  return el;
+};
+function graficoBarras(regs){ const byDay={}; regs.forEach(r=>{ byDay[r.fecha]=byDay[r.fecha]||{i:0,e:0}; if(r.categoria==='Ingreso')byDay[r.fecha].i+=r.total; else byDay[r.fecha].e+=r.total; });
+  const dias=Object.keys(byDay).sort().slice(-10); if(!dias.length)return h('<div></div>'); const max=Math.max(1,...dias.map(d=>Math.max(byDay[d].i,byDay[d].e)));
+  const W=460,H=180,pad=24,bw=(W-pad*2)/dias.length; let bars='';
+  dias.forEach((d,i)=>{ const x=pad+i*bw,ih=byDay[d].i/max*(H-50),eh=byDay[d].e/max*(H-50),w=bw*0.28;
+    bars+=`<rect x="${x+bw/2-w-3}" y="${H-30-ih}" width="${w}" height="${ih}" rx="3" fill="#137A4F"/><rect x="${x+bw/2+3}" y="${H-30-eh}" width="${w}" height="${eh}" rx="3" fill="#BB4D2C"/>`;
+    const dd=d.split('-'); bars+=`<text x="${x+bw/2}" y="${H-12}" text-anchor="middle" font-size="11" fill="#8A8A8F">${+dd[2]}/${+dd[1]}</text>`; });
+  return h(`<div class="card"><h3>INGRESOS VS EGRESOS</h3><div class="chart"><svg viewBox="0 0 ${W} ${H}">${bars}</svg></div><div class="legend"><span><i style="background:#137A4F"></i>Ingresos</span><span><i style="background:#BB4D2C"></i>Egresos</span></div></div>`); }
+
+screens.mas = () => {
+  const el=h(`<section class="screen"><h1 class="ltitle">Más</h1>
+    <div class="lgroup inset">
+      <button class="grow tap" data-go="semana">${tile('calendar','var(--accent)')}<span class="gtx"><b>Planificador de la semana</b><small>Tareas para el trabajador</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="inventario">${tile('box','var(--gold)')}<span class="gtx"><b>Inventario</b><small>Medicinas, alimentos, materiales</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="reportes">${tile('doc','var(--slate)')}<span class="gtx"><b>Reportes</b><small>PDF y Excel</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="backup">${tile('save','var(--navy)')}<span class="gtx"><b>Copia de seguridad</b><small>Exportar / importar todo</small></span><span class="gchev">${icon('chevron')}</span></button>
+      <button class="grow tap" data-go="config">${tile('gear','var(--slate)')}<span class="gtx"><b>Ajustes</b><small>Google Sheets, conexión</small></span><span class="gchev">${icon('chevron')}</span></button>
+    </div></section>`);
+  el.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+  return el;
+};
+
+let semanaTab='plan';
+screens.semana = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div>
+    <h1 class="ltitle">Tareas de la semana</h1>
+    <div class="seg"><button data-m="plan" class="${semanaTab==='plan'?'sel':''}">Plan (a hacer)</button><button data-m="hechas" class="${semanaTab==='hechas'?'sel':''}">Realizadas</button></div>
+    <div id="semcont"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('mas');
+  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ semanaTab=b.dataset.m; show('semana'); });
+  const cont=el.querySelector('#semcont'); if(semanaTab==='plan') renderPlanForm(cont); else renderRealizadas(cont);
+  return el;
+};
+function renderPlanForm(cont){
+  const plan={semana:semanaLabelActual(),vacas:[...VACAS_FIJAS],tareas:[]}; cont.innerHTML='';
+  const wrap=h(`<div>
+    <div class="field"><label>Semana</label><input type="text" id="sem" value="${plan.semana}"></div>
+    <div class="field"><label>Tareas de las vacas <span class="soft">· todos los días</span></label><div class="lgroup" id="vacas"></div><button type="button" class="linkbtn" id="addvaca">+ Agregar tarea de vacas</button></div>
+    <div class="field"><label>Tareas de la semana</label><div id="comunes" style="margin-bottom:10px"></div><div class="lgroup" id="tareas" style="display:none"></div><button type="button" class="linkbtn" id="addtarea">+ Escribir otra tarea</button></div>
+    <button class="save" id="gen">${icon('spark')} Generar imagen para enviar</button><div id="planprev"></div>
+    <button class="btn-outline" id="guardar" style="margin-top:12px">Guardar en registros</button></div>`);
+  cont.appendChild(wrap); wrap.querySelector('#sem').oninput=e=>plan.semana=e.target.value;
+  function renderVacas(){ const c=wrap.querySelector('#vacas'); c.innerHTML=''; plan.vacas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="rm">✕</button></div>`);
+    row.querySelector('input').value=t; row.querySelector('input').oninput=e=>plan.vacas[i]=e.target.value; row.querySelector('.rm').onclick=()=>{ plan.vacas.splice(i,1); renderVacas(); }; c.appendChild(row); }); }
+  renderVacas(); wrap.querySelector('#addvaca').onclick=()=>{ plan.vacas.push(''); renderVacas(); };
+  const chips=h('<div class="chips"></div>'); TAREAS_COMUNES.forEach(t=>{ const c=h(`<button type="button" class="chip">${t.replace(/\.$/,'')}</button>`); c.onclick=()=>{ if(!plan.tareas.includes(t)){ plan.tareas.push(t); renderTareas(); } }; chips.appendChild(c); }); wrap.querySelector('#comunes').appendChild(chips);
+  function renderTareas(){ const c=wrap.querySelector('#tareas'); c.innerHTML=''; c.style.display=plan.tareas.length?'block':'none'; plan.tareas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${t}</span><button type="button" class="mv" data-up>↑</button><button type="button" class="mv" data-dn>↓</button><button type="button" class="rm">✕</button></div>`);
+    row.querySelector('[data-up]').onclick=()=>{ if(i>0){ [plan.tareas[i-1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i-1]]; renderTareas(); } }; row.querySelector('[data-dn]').onclick=()=>{ if(i<plan.tareas.length-1){ [plan.tareas[i+1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i+1]]; renderTareas(); } };
+    row.querySelector('.rm').onclick=()=>{ plan.tareas.splice(i,1); renderTareas(); }; c.appendChild(row); }); }
+  renderTareas(); wrap.querySelector('#addtarea').onclick=()=>askText('Nueva tarea','Escribe la tarea','',v=>{ let t=v.trim(); if(!/[.!?]$/.test(t))t+='.'; plan.tareas.push(t); renderTareas(); });
+  wrap.querySelector('#gen').onclick=async()=>{ wrap.querySelector('#gen').textContent='Generando…'; const blob=await generarPlanImagen(plan);
+    const prev=wrap.querySelector('#planprev'); prev.innerHTML=''; prev.style.display='block'; prev.appendChild(h(`<img alt="Tareas" src="${blobURL(blob)}">`));
+    const share=h(`<button class="save" style="margin-top:12px">${icon('share')} Compartir / Descargar</button>`); share.onclick=()=>compartir(blob,`Tareas_${plan.semana.replace(/\s+/g,'_')}.png`); prev.appendChild(share);
+    wrap.querySelector('#gen').innerHTML=icon('spark')+' Generar de nuevo'; try{ prev.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} };
+  wrap.querySelector('#guardar').onclick=async()=>{ const reg={id:nuevoId(),fecha:hoyISO(),tipo:'Planificador',nombreDesc:'Plan de la semana',detalle:plan.semana,cantidad:plan.tareas.length,unidad:'tareas',precio:0,total:0,categoria:'Plan',notas:JSON.stringify({vacas:plan.vacas,tareas:plan.tareas}),semana:plan.semana,fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+    await put('registros',reg); toast('Guardado en registros'); actualizarSync(); sincronizar(); };
+}
+async function renderRealizadas(cont){ cont.innerHTML='';
+  const regs=(await vivos('registros')).filter(r=>r.tipo==='Planificador').sort((a,b)=>b.creado-a.creado);
+  if(!regs.length){ cont.appendChild(h(`<div class="empty">${icon('calendar')}<div>Todavía no hay planes guardados.<br>Crea uno en "Plan" y guárdalo.</div></div>`)); return; }
+  const semanas=[...new Set(regs.map(r=>r.detalle||r.semana))];
+  cont.appendChild(h(`<div class="field"><label>Elige la semana</label></div>`));
+  const chips=h('<div class="chips" style="margin-bottom:18px"></div>'); const detalle=h('<div></div>');
+  function mostrar(sem){ chips.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c.textContent===sem)); detalle.innerHTML='';
+    regs.filter(r=>(r.detalle||r.semana)===sem).forEach(r=>{ let data; try{data=JSON.parse(r.notas);}catch{data={vacas:[],tareas:[]};} const vacas=data.vacas||[],tareas=data.tareas||[];
+      const card=h(`<div class="card"><h3>${r.nombreDesc.toUpperCase()} · ${r.fecha}</h3></div>`);
+      if(vacas.length){ card.appendChild(h(`<div style="font-size:.82rem;font-weight:600;color:var(--secondary);margin-bottom:6px">VACAS (TODOS LOS DÍAS)</div>`)); const vg=h('<div class="lgroup" style="margin-bottom:14px"></div>'); vacas.forEach((v,i)=>vg.appendChild(h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${v}</span></div>`))); card.appendChild(vg); }
+      if(tareas.length){ card.appendChild(h(`<div style="font-size:.82rem;font-weight:600;color:var(--secondary);margin-bottom:6px">TAREAS DE LA SEMANA</div>`)); const tg=h('<div class="lgroup" style="margin-bottom:10px"></div>'); tareas.forEach((t,i)=>tg.appendChild(h(`<div class="plan-item"><span class="n">${vacas.length+i+1}</span><span class="tx">${t}</span></div>`))); card.appendChild(tg); }
+      const regen=h(`<button class="btn-outline" style="margin-top:6px">${icon('spark')} Generar imagen de este plan</button>`);
+      regen.onclick=async()=>{ regen.textContent='Generando…'; const blob=await generarPlanImagen({modo:'hechas',semana:r.detalle||r.semana,vacas,tareas}); const prev=h('<div style="margin-top:10px"></div>');
+        prev.appendChild(h(`<img alt="Realizadas" src="${blobURL(blob)}" style="width:100%;border-radius:14px;box-shadow:var(--shadow-card)">`)); const share=h(`<button class="save" style="margin-top:10px">${icon('share')} Compartir / Descargar</button>`); share.onclick=()=>compartir(blob,`Realizadas_${(r.detalle||r.semana).replace(/\s+/g,'_')}.png`); prev.appendChild(share); card.appendChild(prev); regen.style.display='none'; };
+      card.appendChild(regen);
+      const delBtn=h(`<button class="danger-link" style="margin-top:6px">Eliminar este plan</button>`); delBtn.onclick=async()=>{ if(!confirm('¿Eliminar este plan?'))return; await borrarReg('registros',r.id); toast('Plan eliminado'); actualizarSync(); renderRealizadas(cont); }; card.appendChild(delBtn);
+      detalle.appendChild(card); }); }
+  semanas.forEach(sem=>{ const c=h(`<button type="button" class="chip"></button>`); c.textContent=sem; c.onclick=()=>mostrar(sem); chips.appendChild(c); });
+  cont.appendChild(chips); cont.appendChild(detalle); mostrar(semanas[0]);
+}
+async function compartir(blob,filename){ try{ const file=new File([blob],filename,{type:'image/png'}); if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'Tareas Finca La Esperanza'}); return; } }catch(e){}
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); toast('Imagen descargada'); }
+async function generarPlanImagen(plan){
+  const W=1080,PAD=64,logo=await loadImg('logo.jpg'); const c=document.createElement('canvas'),ctx=c.getContext('2d');
+  const fTitle='800 56px -apple-system,Arial',fSub='700 30px -apple-system,Arial',fSec='800 30px -apple-system,Arial',fItem='400 30px -apple-system,Arial',fNum='800 30px -apple-system,Arial';
+  function wrap(text,maxW,font){ ctx.font=font; const words=text.split(' '); const lines=[]; let ln=''; for(const w of words){ const t=ln?ln+' '+w:w; if(ctx.measureText(t).width>maxW&&ln){ lines.push(ln); ln=w; } else ln=t; } if(ln)lines.push(ln); return lines; }
+  const titleLines=[(plan.modo==='hechas'?'TAREAS REALIZADAS':'TAREAS'),'FINCA LA ESPERANZA']; const contentW=W-PAD*2,itemIndent=54,itemW=contentW-itemIndent;
+  const sec1='TAREAS TODOS LOS DÍAS (LUNES A DOMINGO) - VACAS'; const sec2=plan.modo==='hechas'?'TAREAS REALIZADAS':'TAREAS DE LUNES A VIERNES'; const vacas=plan.vacas.filter(x=>x&&x.trim());
+  let H=44+titleLines.length*62+6+44+30; function blockH(hd,items){ let hh=wrap(hd,contentW,fSec).length*38+20; items.forEach(it=>{ hh+=wrap(it,itemW,fItem).length*40+8; }); return hh+24; }
+  H+=blockH(sec1,vacas)+blockH(sec2,plan.tareas)+50; c.width=W; c.height=H; ctx.fillStyle='#FFFFFF'; ctx.fillRect(0,0,W,H);
+  if(logo){ const ls=190; ctx.drawImage(logo,W-PAD-ls,30,ls,ls); }
+  let y=64; ctx.textBaseline='alphabetic'; ctx.fillStyle='#137A4F'; titleLines.forEach(t=>{ ctx.font=fTitle; ctx.fillText(t,PAD,y+46); y+=62; });
+  y+=2; ctx.fillStyle='#3a3a3a'; ctx.font=fSub; ctx.fillText(plan.semana,PAD,y+30); y+=52; ctx.strokeStyle='#B8871C'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke(); y+=34;
+  function drawBlock(hd,items,color,startNum){ ctx.fillStyle=color; ctx.font=fSec; wrap(hd,contentW,fSec).forEach(l=>{ ctx.fillText(l,PAD,y+28); y+=38; }); ctx.strokeStyle=color; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(PAD,y-4); ctx.lineTo(W-PAD,y-4); ctx.stroke(); y+=18;
+    items.forEach((it,idx)=>{ const lines=wrap(it,itemW,fItem); ctx.fillStyle=color; ctx.font=fNum; ctx.fillText((startNum+idx)+'.',PAD,y+26); ctx.fillStyle='#211A14'; ctx.font=fItem; lines.forEach((l,li)=>{ ctx.fillText(l,PAD+itemIndent,y+26+li*40); }); y+=lines.length*40+8; }); y+=24; }
+  drawBlock(sec1,vacas,'#1B3A5B',1); drawBlock(sec2,plan.tareas,'#137A4F',vacas.length+1);
+  return await new Promise(res=>c.toBlob(b=>res(b),'image/png',0.92));
+}
+
+screens.reportes = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div><h1 class="ltitle">Reportes</h1>
+    <button class="btn-outline" id="pdfmes">${icon('doc')} PDF del mes</button>
+    <button class="btn-outline" id="pdfsem">${icon('doc')} PDF de esta semana</button>
+    <button class="btn-outline" id="csv">${icon('chart')} Descargar tabla (Excel / CSV)</button>
+    <button class="btn-outline" id="sheet">${icon('share')} Abrir Google Sheet</button>
+    <p class="hint">El PDF arma el resumen con los datos y el logo. En el diálogo elige <b>Guardar como PDF</b>.</p></section>`);
+  el.querySelector('.back').onclick=()=>show('mas');
+  el.querySelector('#pdfmes').onclick=()=>imprimirReporte('mes'); el.querySelector('#pdfsem').onclick=()=>imprimirReporte('semana');
+  el.querySelector('#csv').onclick=exportarCSV; el.querySelector('#sheet').onclick=()=>{ if(META.sheetUrl)window.open(META.sheetUrl,'_blank'); else toast('Configura el enlace en Ajustes'); };
+  return el;
+};
+async function imprimirReporte(per){
+  const regs=(await vivos('registros')).filter(r=>r.categoria==='Ingreso'||r.categoria==='Egreso'); const prod=await vivos('produccion'); const leche=await vivos('leche'); const hoy=hoyISO();
+  const enP=r=> per==='mes'?ymDe(r.fecha)===ymActual():mismaSemana(r.fecha,hoy);
+  const filt=regs.filter(enP).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const ing={},egr={}; let mano=0,tI=0,tE=0; filt.forEach(r=>{ if(r.categoria==='Ingreso'){ ing[r.nombreDesc]=(ing[r.nombreDesc]||0)+r.total; tI+=r.total; } else { tE+=r.total; if(r.tipo==='Trabajador')mano+=r.total; else egr[r.nombreDesc]=(egr[r.nombreDesc]||0)+r.total; } });
+  const neta=tI-tE; const titulo=per==='mes'?'RESUMEN MENSUAL':'RESUMEN SEMANAL'; const sub=per==='mes'?ymLabel(ymActual()):('Semana '+semanaDe(hoy));
+  const prP=prod.filter(enP); const byProd={}; prP.forEach(r=>{ const k=r.producto+' ('+(r.unidad||'')+')'; byProd[k]=(byProd[k]||0)+num(r.cantidad); });
+  const litros=leche.filter(enP).reduce((s,r)=>s+num(r.litros),0);
+  let filas=''; filt.forEach(r=>{ filas+=`<tr><td>${r.fecha}</td><td>${r.nombreDesc}</td><td>${r.detalle||''}</td><td style="text-align:right;color:${r.categoria==='Ingreso'?'#137A4F':'#BB4D2C'}">${r.categoria==='Ingreso'?'+':'−'}${money(r.total)}</td></tr>`; });
+  const ingRows=Object.keys(ing).map(k=>`<tr><td>${k}</td><td style="text-align:right">${money(ing[k])}</td></tr>`).join('');
+  const egrRows=(mano?`<tr><td>Mano de obra</td><td style="text-align:right">${money(mano)}</td></tr>`:'')+Object.keys(egr).map(k=>`<tr><td>${k}</td><td style="text-align:right">${money(egr[k])}</td></tr>`).join('');
+  const prodRows=Object.keys(byProd).map(k=>`<tr><td>${k}</td><td style="text-align:right">${byProd[k]}</td></tr>`).join('')+(litros?`<tr><td>Leche (litros)</td><td style="text-align:right">${litros} L</td></tr>`:'');
+  $('#printarea').innerHTML=`<div style="font-family:-apple-system,Arial;color:#211A14;padding:24px;max-width:720px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:16px;border-bottom:3px solid #B8871C;padding-bottom:14px;margin-bottom:18px"><img src="logo.jpg" style="width:88px;height:88px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'"><div><div style="font-size:26px;font-weight:800;color:#137A4F;line-height:1.1">${titulo}</div><div style="font-size:18px;font-weight:700">FINCA LA ESPERANZA</div><div style="color:#8A8A8F">${sub}</div></div></div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr><td style="font-weight:800;color:#137A4F;padding-bottom:6px">INGRESOS</td><td></td></tr>${ingRows||'<tr><td colspan="2" style="color:#8A8A8F">Sin ingresos</td></tr>'}<tr><td style="font-weight:800;border-top:1px solid #ccc;padding-top:6px">Total</td><td style="text-align:right;font-weight:800;border-top:1px solid #ccc;padding-top:6px">${money(tI)}</td></tr></table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr><td style="font-weight:800;color:#BB4D2C;padding-bottom:6px">EGRESOS</td><td></td></tr>${egrRows||'<tr><td colspan="2" style="color:#8A8A8F">Sin egresos</td></tr>'}<tr><td style="font-weight:800;border-top:1px solid #ccc;padding-top:6px">Total</td><td style="text-align:right;font-weight:800;border-top:1px solid #ccc;padding-top:6px">${money(tE)}</td></tr></table>
+    ${prodRows?`<table style="width:100%;border-collapse:collapse;margin-bottom:14px"><tr><td style="font-weight:800;color:#B8871C;padding-bottom:6px">PRODUCCIÓN</td><td></td></tr>${prodRows}</table>`:''}
+    <div style="display:flex;justify-content:space-between;align-items:center;background:#E4F1EA;border-radius:12px;padding:14px 18px;margin-bottom:22px"><span style="font-weight:800;font-size:18px">GANANCIA NETA</span><span style="font-weight:800;font-size:24px;color:${neta>=0?'#137A4F':'#BB4D2C'}">${money(neta)}</span></div>
+    <div style="font-weight:800;color:#137A4F;margin-bottom:8px">DETALLE</div><table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="border-bottom:2px solid #211A14"><th style="text-align:left;padding:6px 4px">Fecha</th><th style="text-align:left">Concepto</th><th style="text-align:left">Detalle</th><th style="text-align:right">Monto</th></tr>${filas||'<tr><td colspan="4" style="color:#8A8A8F;padding:8px 4px">Sin movimientos</td></tr>'}</table>
+    <div style="margin-top:24px;color:#8A8A8F;font-size:12px;text-align:center">Finca La Esperanza · ${hoyISO()}</div></div>`;
+  setTimeout(()=>window.print(),120);
+}
+async function exportarCSV(){ const regs=(await vivos('registros')).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const cols=['id','fecha','tipo','nombreDesc','detalle','cantidad','unidad','precio','total','categoria','comprador','notas','semana','comprobanteUrl','sync'];
+  const head=['ID','Fecha','Tipo','Nombre','Detalle','Cantidad','Unidad','Precio','Total','Categoría','Comprador','Notas','Semana','Comprobante','Estado'];
+  const esc=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`; const rows=[head.join(',')].concat(regs.map(r=>cols.map(c=>esc(r[c])).join(',')));
+  const blob=new Blob(['\ufeff'+rows.join('\n')],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`Finca_La_Esperanza_${hoyISO()}.csv`; a.click(); toast('Tabla descargada'); }
+
+screens.backup = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div><h1 class="ltitle">Copia de seguridad</h1>
+    <p class="hint" style="margin:0 4px 14px">Guarda <b>todo</b> (animales, ventas, gastos, producción, leche, salud, inventario y fotos) en un archivo. Si cambias de teléfono, lo importas y no pierdes nada.</p>
+    <button class="save" id="exp">${icon('save')} Exportar copia (archivo)</button>
+    <button class="btn-outline" id="imp" style="margin-top:14px">${icon('gallery')} Importar copia</button>
+    <input type="file" id="impfile" accept="application/json,.json" hidden>
+    <p class="hint">También puedes descargar la tabla en Excel/CSV desde Reportes.</p></section>`);
+  el.querySelector('.back').onclick=()=>show('mas');
+  el.querySelector('#exp').onclick=exportarJSON;
+  el.querySelector('#imp').onclick=()=>el.querySelector('#impfile').click();
+  el.querySelector('#impfile').onchange=importarJSON;
+  return el;
+};
+async function exportarJSON(){ toast('Preparando copia…'); const data={version:5,fecha:hoyISO(),meta:META};
+  for(const s of ['registros','produccion','animales','leche','salud','inventario','caja','galeria']) data[s]=await all(s);
+  const fotos=await all('fotos'); data.fotos=[]; for(const f of fotos){ if(f.blob){ try{ data.fotos.push({id:f.id,b64:await blob2b64(f.blob)}); }catch(e){} } }
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`Backup_Finca_${hoyISO()}.json`; a.click(); toast('Copia exportada'); }
+async function importarJSON(e){ const file=e.target.files[0]; if(!file)return; if(!confirm('Esto agregará/reemplazará los datos de la copia. ¿Continuar?'))return;
+  try{ const txt=await file.text(); const data=JSON.parse(txt);
+    for(const s of ['registros','produccion','animales','leche','salud','inventario','caja','galeria']) if(Array.isArray(data[s])) for(const r of data[s]) await put(s,r);
+    if(Array.isArray(data.fotos)) for(const f of data.fotos){ if(f.b64){ try{ await put('fotos',{id:f.id,blob:b642blob(f.b64)}); }catch(e){} } }
+    if(data.meta){ META=Object.assign({},DEFAULTS,data.meta); await saveMeta(); }
+    toast('Copia importada'); actualizarSync(); show('home'); }
+  catch(err){ toast('Archivo no válido'); } }
+
+
+async function diagnostico(cont){
+  cont.innerHTML=''; const card=h('<div class="card"><h3>DIAGNÓSTICO</h3></div>'); cont.appendChild(card);
+  const paso=(t,estado,extra)=>{ const col=estado==='ok'?'var(--accent)':estado==='mal'?'var(--danger)':'var(--secondary)';
+    card.appendChild(h(`<div class="line"><span class="k">${t}</span><span class="v" style="color:${col}">${estado==='ok'?'✓':estado==='mal'?'✗':'…'}</span></div>`));
+    if(extra) card.appendChild(h(`<p class="hint" style="margin:2px 4px 8px">${extra}</p>`)); };
+
+  if(!online()){ paso('Internet','mal','El teléfono no tiene conexión.'); return; }
+  paso('Internet','ok');
+  if(!META.appsUrl){ paso('Dirección del script','mal','Está vacía. Pégala arriba y guarda.'); return; }
+  if(META.appsUrl.indexOf('/exec')<0){ paso('Dirección del script','mal','Debe terminar en /exec. La que tienes no.'); return; }
+  paso('Dirección del script','ok');
+
+  let txt='';
+  try{
+    const resp=await fetch(META.appsUrl+'?token='+encodeURIComponent(META.token),{method:'GET'});
+    txt=await resp.text();
+  }catch(e){ paso('Google responde','mal','No se pudo conectar. Puede ser la señal, o el script no está publicado para "Cualquiera".'); return; }
+  paso('Google responde','ok');
+
+  let data=null; try{ data=JSON.parse(txt); }catch(e){}
+  if(!data){
+    if(txt.indexOf('Finca La Esperanza')>=0){
+      paso('Versión del script','mal','<b>Este es el problema.</b> El script de Google todavía es la versión vieja: recibe datos pero no los entrega. Hay que pegar el código nuevo y volver a implementarlo (Implementar › Gestionar implementaciones › ✏️ › Nueva versión).');
+    } else {
+      paso('Versión del script','mal','Google devolvió algo que no se entiende. Revisa que esté implementado como "Aplicación web", ejecutando "como Yo" y con acceso para "Cualquiera".');
+    }
     return;
   }
+  paso('Versión del script','ok');
+  if(!data.ok){
+    paso('Token','mal', data.error==='token' ? 'El token de la app no coincide con el del script. En el script busca la línea <b>const TOKEN</b> y ponle el mismo de arriba.' : 'Error: '+data.error);
+    return;
+  }
+  paso('Token','ok');
 
-  // Imágenes e iconos: primero la copia guardada (son fijos y así abre rápido)
-  e.respondWith(
-    caches.match(req).then(cached => {
-      if (cached) return cached;
-      return fetch(req).then(resp => {
-        if (resp && resp.status === 200 && req.url.startsWith(self.location.origin)) {
-          const copy = resp.clone();
-          caches.open(CACHE).then(c => c.put(req, copy));
-        }
-        return resp;
-      }).catch(() => cached);
-    })
-  );
-});
+  let totalServidor=0; const detalle=[];
+  for(const st of SYNCST){ const n=(data.datos[st]||[]).length; totalServidor+=n; if(n) detalle.push(`${st}: ${n}`); }
+  let totalLocal=0; for(const st of SYNCST) totalLocal+=(await vivos(st)).length;
+  paso('Datos en Google','ok', totalServidor? detalle.join(' · ') : 'La hoja está vacía todavía.');
+  card.appendChild(h(`<div class="line"><span class="k">En este teléfono</span><span class="v">${totalLocal}</span></div>`));
+  const pend=(await pendientes()).length;
+  card.appendChild(h(`<div class="line"><span class="k">Sin subir</span><span class="v" style="color:${pend?'var(--gold)':'var(--accent)'}">${pend}</span></div>`));
+  cont.appendChild(h(`<p class="hint"><b>Todo bien.</b> Si aún ves distinto en otro teléfono, toca "Sincronizar ahora" en los dos.</p>`));
+  const b=h(`<button class="save" style="margin-top:8px">Sincronizar ahora</button>`);
+  b.onclick=async()=>{ b.textContent='Sincronizando…'; await sincronizar(true); show('config'); };
+  cont.appendChild(b);
+}
+
+screens.config = () => {
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div><h1 class="ltitle">Ajustes</h1>
+    <div class="ghead">Conexión con Google</div>
+    <p class="hint" style="margin-top:2px">Ya viene conectada. Si cambias el script, pega aquí la URL nueva.</p>
+    <div class="field"><label>Dirección del Apps Script (URL)</label><input type="text" id="url" placeholder="https://script.google.com/macros/s/…/exec" value="${META.appsUrl||''}"></div>
+    <div class="field"><label>Token secreto</label><input type="text" id="token" placeholder="clave" value="${META.token||''}"></div>
+    <div class="field"><label>Enlace al Google Sheet</label><input type="text" id="sheet" placeholder="https://docs.google.com/spreadsheets/…" value="${META.sheetUrl||''}"></div>
+    <button class="save" id="guardar">Guardar ajustes</button>
+    <button class="btn-outline" id="probar" style="margin-top:12px">${icon('share')} Sincronizar ahora</button>
+    <button class="btn-outline" id="diag">${icon('gear')} Probar conexión (diagnóstico)</button>
+    <button class="btn-outline" id="rebajar">${icon('save')} Volver a bajar todo de Google</button>
+    <div id="diagres"></div>
+    <p class="hint">La app se sincroniza sola al abrirla y cada 2 minutos. También puedes tocar la barra verde de arriba.</p>
+    <div class="ghead">Varios teléfonos</div>
+    <p class="hint" style="margin-top:2px">Para usar la app en otro teléfono: abre el mismo enlace ahí, revisa que tenga esta misma URL y token, y toca "Sincronizar ahora". Bajará todo lo registrado.</p>
+    <div class="ghead">Estado</div>
+    <div class="lgroup"><div class="grow"><span class="gtx"><b>Guardado local</b></span><span class="gval">${useMem?'⚠️ solo memoria*':'✓ activo'}</span></div><div class="grow"><span class="gtx"><b>Registros</b></span><span class="gval" id="ncount">…</span></div></div>
+    <p class="hint" ${useMem?'':'style="display:none"'}>*Esta vista previa no guarda permanente; en tu teléfono / GitHub Pages sí.</p></section>`);
+  el.querySelector('.back').onclick=()=>show('mas');
+  (async()=>{ let n=0; for(const s of SYNCST) n+=(await vivos(s)).length; const nc=el.querySelector('#ncount'); if(nc)nc.textContent=n; })();
+  el.querySelector('#guardar').onclick=async()=>{ META.appsUrl=el.querySelector('#url').value.trim(); META.token=el.querySelector('#token').value.trim(); META.sheetUrl=el.querySelector('#sheet').value.trim(); await saveMeta(); toast('Ajustes guardados'); actualizarSync(); sincronizar(); };
+  el.querySelector('#probar').onclick=()=>sincronizar(true);
+  el.querySelector('#diag').onclick=()=>diagnostico(el.querySelector('#diagres'));
+  el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Bajando…';
+    META.ultimaBajada=0; bajadaCompletaHecha=false; await saveMeta(); await sincronizar(true); show('config'); };
+  return el;
+};
+
+window.addEventListener('online',()=>sincronizar()); window.addEventListener('offline',actualizarSync);
+// sincroniza sola: al abrir, al volver a la app, y cada 2 minutos
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) sincronizar(); });
+setInterval(()=>{ if(!document.hidden) sincronizar(); }, 30000);
+$('#statusline').style.cursor='pointer';
+$('#statusline').onclick=()=>{ if(ultimoErrorBajada){ show('config'); toast('Revisa la conexión'); return; } toast('Sincronizando…'); sincronizar(true); };
+(async function init(){
+  try{ await openDB(); }catch(e){ useMem=true; }
+  try{ await loadMeta(); }catch(e){ META=Object.assign({},DEFAULTS); }
+  renderTabbar();
+  try{ show('home'); }catch(e){ useMem=true; try{ show('home'); }catch(_){ view.innerHTML='<p style="padding:24px;text-align:center;color:#8A8A8F">No se pudo cargar. Vuelve a abrir la página.</p>'; } }
+  actualizarSync(); sincronizar();
+  if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }
+})();
+</script>
+</body>
+</html>
