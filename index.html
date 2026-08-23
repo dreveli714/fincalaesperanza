@@ -89,6 +89,7 @@
 
   .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:6px;}
   .kpi{background:var(--surface);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow-card);}
+  .kpi.tap{cursor:pointer;transition:transform .08s;} .kpi.tap:active{transform:scale(.97);background:var(--surface-press);}
   .kpi .kl{font-size:.8rem;color:var(--secondary);font-weight:600;margin-bottom:3px;}
   .kpi .kv{font-size:1.55rem;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;}
   .kpi.wide{grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;}
@@ -242,12 +243,12 @@ const TAREAS_COMUNES=['Cosechar cacao y venderlo.','Cosechar verde y venderlo.',
 const PRODUCTOS_PROD=['Cacao','Verde','Maqueño','Leche','Otro'];
 const ESTADOS_CACAO=['En baba','Semi seco','Seco'];
 function esCacao(nombre){ return (nombre||'').toLowerCase().includes('cacao'); }
-const ESTADOS_ANIMAL=['Lactando','Seca','Gestante','Ternero/a','Vendida','Otro'];
+const ESTADOS_ANIMAL=['Vacía','Preñada','Lactando','Ternero/a'];
 const RAZAS=['Mestiza','Brahman','Holstein','Jersey','Otra'];
 const TIPO_SALUD=['Vacuna','Desparasitación','Tratamiento','Revisión','Otro'];
 const CAT_INV=['Medicina','Alimento','Material','Agrícola','Otro'];
 const DEFAULTS={
-  trabajadores:['Washington'],
+  trabajadores:['Washington','Bethy'],
   formasPago:[{n:'Jornal',p:15},{n:'Guadaña',p:30},{n:'Rodeo de vacas',p:5},{n:'Extra',p:0,editable:true}],
   productosVenta:[{n:'Cacao en libras',u:'libras'},{n:'Caja de verde',u:'cajas'},{n:'Litro de leche',u:'litros'}],
   gastos:['Alimentación animal','Medicina','Vacuna','Combustible','Fertilizante','Herramientas','Mantenimiento','Transporte','Otro'],
@@ -452,14 +453,14 @@ screens.home = () => {
     dash.innerHTML=`
       <div class="ghead" style="margin-top:0">${ymLabel(ym)}</div>
       <div class="kpi-grid">
-        <div class="kpi wide"><div><div class="kl">Ganancia del mes</div><div class="kv ${gan>=0?'pos':'neg'}">${money(gan)}</div></div>${tile('coin','var(--accent)')}</div>
-        <div class="kpi"><div class="kl">Ingresos</div><div class="kv pos">${money(ingr)}</div></div>
-        <div class="kpi"><div class="kl">Gastos</div><div class="kv neg">${money(gast)}</div></div>
-        <div class="kpi"><div class="kl">Leche producida</div><div class="kv">${lecheMes} L</div></div>
-        <div class="kpi"><div class="kl">Cacao vendido</div><div class="kv">${cacaoVend} lb</div></div>
-        <div class="kpi"><div class="kl">Jornales</div><div class="kv">${jornales}</div></div>
-        <div class="kpi"><div class="kl">Vacas</div><div class="kv">${vacas}</div></div>
-        <div class="kpi"><div class="kl">Caja chica</div><div class="kv ${salCaja<0?'neg':''}">${money(salCaja)}</div></div>
+        <div class="kpi wide tap" data-kpi="ganancia"><div><div class="kl">Ganancia del mes</div><div class="kv ${gan>=0?'pos':'neg'}">${money(gan)}</div></div>${tile('coin','var(--accent)')}</div>
+        <div class="kpi tap" data-kpi="ingresos"><div class="kl">Ingresos</div><div class="kv pos">${money(ingr)}</div></div>
+        <div class="kpi tap" data-kpi="gastos"><div class="kl">Gastos</div><div class="kv neg">${money(gast)}</div></div>
+        <div class="kpi tap" data-kpi="leche"><div class="kl">Leche producida</div><div class="kv">${lecheMes} L</div></div>
+        <div class="kpi tap" data-kpi="cacao"><div class="kl">Cacao vendido</div><div class="kv">${cacaoVend} lb</div></div>
+        <div class="kpi tap" data-kpi="jornales"><div class="kl">Jornales</div><div class="kv">${jornales}</div></div>
+        <div class="kpi tap" data-kpi="vacas"><div class="kl">Vacas</div><div class="kv">${vacas}</div></div>
+        <div class="kpi tap" data-kpi="caja"><div class="kl">Caja chica</div><div class="kv ${salCaja<0?'neg':''}">${money(salCaja)}</div></div>
       </div>
       ${alertas?`<div class="ghead">Alertas</div>${alertas}`:''}
       <div class="ghead">Registrar rápido</div>
@@ -474,9 +475,23 @@ screens.home = () => {
         <button class="qbtn" data-go="movimientos"><span class="qi" style="background:var(--slate)">${icon('doc')}</span>Historial</button>
       </div>`;
     dash.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>show(b.dataset.go));
+    dash.querySelectorAll('[data-kpi]').forEach(k=>{ k.onclick=()=>abrirKpi(k.dataset.kpi); });
   })();
   return el;
 };
+
+
+async function abrirKpi(tipo){
+  // Ganancia, Ingresos, Gastos, Jornales, Caja -> historial filtrado. Leche/Cacao/Vacas -> su pantalla.
+  if(tipo==='leche'){ show('leche'); return; }
+  if(tipo==='vacas'){ show('animales'); return; }
+  if(tipo==='caja'){ show('caja'); return; }
+  if(tipo==='ingresos'||tipo==='cacao'){ show('movimientos','ventas'); return; }
+  if(tipo==='gastos'){ show('movimientos','gastos'); return; }
+  if(tipo==='jornales'){ show('movimientos','trabajador'); return; }
+  if(tipo==='ganancia'){ show('analisis'); return; }
+  show('movimientos','todos');
+}
 
 function chipGroup(items,value,onPick,{gold=false,onAdd=null}={}){
   const wrap=h('<div class="chips"></div>');
@@ -578,19 +593,29 @@ screens.gasto = () => {
 };
 
 screens.trabajador = () => {
-  const st={nombre:META.trabajadores[0],pago:META.formasPago[0],dias:new Set(),pagado:true};
+  const st={nombre:META.trabajadores[0],pago:META.formasPago[0],dias:new Set(),actividades:{},pagado:true};
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
     <h1 class="ltitle">Trabajador</h1>
     <button class="btn-outline" id="verhist" style="margin-bottom:4px">${icon('doc')} Ver jornales registrados</button>
     <div class="field"><label>Trabajador</label><div id="who"></div></div>
     <div class="field"><label>Forma de pago</label><div id="pago"></div></div>
-    <div class="field"><label>Días trabajados <span class="soft">· marca los que trabajó</span></label><div id="cal"></div><div id="calcount" style="margin:12px 4px 2px;font-size:.9rem;color:var(--secondary);text-align:center">Ningún día marcado</div></div>
+    <div class="field"><label>Días trabajados <span class="soft">· marca los que trabajó</span></label><div id="cal"></div><div id="calcount" style="margin:12px 4px 2px;font-size:.9rem;color:var(--secondary);text-align:center">Ningún día marcado</div>
+      <div id="actividades" style="margin-top:12px"></div></div>
     <div class="field"><label>Estado</label><div id="estado"></div></div>
     <div class="total-box"><span class="lbl">Pago total</span><span class="val" id="total">$0.00</span></div>
     <button class="save" id="save">Guardar</button></section>`);
   el.querySelector('.back').onclick=()=>show('finanzas');
   el.querySelector('#verhist').onclick=()=>show('movimientos','trabajador');
-  const paint=()=>{ el.querySelector('#total').textContent=money((st.pago.p||0)*st.dias.size); el.querySelector('#calcount').innerHTML=st.dias.size?`<b>${st.dias.size}</b> día(s) marcado(s)`:'Ningún día marcado'; };
+  const paint=()=>{ el.querySelector('#total').textContent=money((st.pago.p||0)*st.dias.size); el.querySelector('#calcount').innerHTML=st.dias.size?`<b>${st.dias.size}</b> día(s) marcado(s)`:'Ningún día marcado'; refreshActividades(); };
+  function refreshActividades(){ const c=el.querySelector('#actividades'); if(!c) return; c.innerHTML='';
+    const dias=[...st.dias].sort(); if(!dias.length) return;
+    // limpiar actividades de días desmarcados
+    Object.keys(st.actividades).forEach(k=>{ if(!st.dias.has(k)) delete st.actividades[k]; });
+    c.appendChild(h(`<div style="font-size:.8rem;font-weight:600;color:var(--secondary);margin:6px 4px 8px">Actividad de cada día <span style="font-weight:400">· opcional</span></div>`));
+    const g=h('<div class="lgroup"></div>');
+    dias.forEach(k=>{ const [,m,d]=k.split('-'); const row=h(`<div class="grow"><span class="gtx" style="flex:0 0 auto;min-width:52px"><b>${+d}/${+m}</b></span><input type="text" class="tx" style="flex:1;border:none;background:none;box-shadow:none;min-height:auto;font-size:1rem;padding:2px 0" placeholder="¿Qué hizo?"></div>`);
+      const inp=row.querySelector('input'); inp.value=st.actividades[k]||''; inp.oninput=e=>st.actividades[k]=e.target.value; g.appendChild(row); });
+    c.appendChild(g); }
   function refreshWho(){ const c=el.querySelector('#who'); c.innerHTML=''; c.appendChild(chipGroup(META.trabajadores,st.nombre,v=>st.nombre=v,{onAdd:v=>{ if(!META.trabajadores.includes(v)){META.trabajadores.push(v);saveMeta();} st.nombre=v; refreshWho(); }})); }
   refreshWho();
   el.querySelector('#pago').appendChild(chipGroup(META.formasPago.map(p=>p.editable?p.n:`${p.n} ($${p.p})`),st.pago.editable?st.pago.n:`${st.pago.n} ($${st.pago.p})`,label=>{ st.pago=META.formasPago.find(p=>(p.editable?p.n:`${p.n} ($${p.p})`)===label); mostrarMontoExtra(); paint(); },{gold:true}));
@@ -602,7 +627,8 @@ screens.trabajador = () => {
   calendarPicker(el.querySelector('#cal'), st.dias, paint); paint();
   el.querySelector('#save').onclick=async()=>{ if(st.dias.size===0){ toast('Marca al menos un día'); return; }
     const dias=[...st.dias].sort(); const first=dias[0];
-    const reg={id:nuevoId(),fecha:first,tipo:'Trabajador',nombreDesc:st.nombre,detalle:`${st.pago.n} · ${dias.length} día(s)`+(st.pagado?'':' · PENDIENTE'),cantidad:dias.length,unidad:'días',precio:st.pago.p,total:st.pago.p*dias.length,categoria:'Egreso',pagado:st.pagado,comprador:'',notas:dias.join(', '),semana:semanaDe(first),fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+    const notasDias=dias.map(k=>{ const a=(st.actividades[k]||'').trim(); const [,m,d]=k.split('-'); return a?`${+d}/${+m}: ${a}`:`${+d}/${+m}`; }).join(' · ');
+    const reg={id:nuevoId(),fecha:first,tipo:'Trabajador',nombreDesc:st.nombre,detalle:`${st.pago.n} · ${dias.length} día(s)`+(st.pagado?'':' · PENDIENTE'),cantidad:dias.length,unidad:'días',precio:st.pago.p,total:st.pago.p*dias.length,categoria:'Egreso',pagado:st.pagado,comprador:'',notas:notasDias,diasJson:JSON.stringify(st.actividades),semana:semanaDe(first),fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
     await put('registros',reg); doneToast(`Guardado: ${st.nombre} · ${dias.length} día(s)`,'registros',reg); };
   return el;
 };
@@ -621,9 +647,13 @@ function calendarPicker(container, selectedSet, onChange){
     ['L','M','X','J','V','S','D'].forEach(d=>grid.appendChild(h(`<div style="text-align:center;font-size:.72rem;color:var(--secondary);font-weight:600;padding:2px 0 6px">${d}</div>`)));
     const first=new Date(cur.getFullYear(),cur.getMonth(),1); const start=(first.getDay()+6)%7; const days=new Date(cur.getFullYear(),cur.getMonth()+1,0).getDate();
     for(let i=0;i<start;i++) grid.appendChild(h('<div></div>'));
+    const hoyK=hoyISO();
     for(let d=1;d<=days;d++){ const k=iso(cur.getFullYear(),cur.getMonth(),d);
-      const cell=h(`<button type="button" style="aspect-ratio:1;border:none;background:transparent;border-radius:50%;font-size:1.02rem;font-weight:500;color:var(--label)">${d}</button>`);
-      if(selectedSet.has(k)){ cell.style.background='var(--accent)'; cell.style.color='#fff'; cell.style.fontWeight='700'; }
+      const cell=h(`<button type="button" style="aspect-ratio:1;border:none;background:transparent;border-radius:50%;font-size:1.02rem;font-weight:500;color:var(--label);position:relative">${d}</button>`);
+      const esPasado = k<hoyK; const esHoy = k===hoyK;
+      if(esPasado){ cell.style.color='var(--tertiary)'; cell.style.textDecoration='line-through'; cell.style.textDecorationColor='var(--tertiary)'; }
+      if(esHoy){ cell.style.boxShadow='inset 0 0 0 1.5px var(--accent)'; cell.style.fontWeight='700'; }
+      if(selectedSet.has(k)){ cell.style.background='var(--accent)'; cell.style.color='#fff'; cell.style.fontWeight='700'; cell.style.textDecoration='none'; }
       cell.onclick=()=>{ if(selectedSet.has(k)){selectedSet.delete(k);cell.style.background='transparent';cell.style.color='var(--label)';cell.style.fontWeight='500';} else {selectedSet.add(k);cell.style.background='var(--accent)';cell.style.color='#fff';cell.style.fontWeight='700';} onChange(); };
       grid.appendChild(cell); }
     wrap.appendChild(grid); container.appendChild(wrap);
@@ -714,7 +744,6 @@ screens.movimientos = (filtro) => {
   const F=movFiltro;
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
     <h1 class="ltitle">Movimientos</h1>
-    <p class="lsub">Toca cualquiera para editarlo o borrarlo</p>
     <div class="seg">
       <button data-f="todos" class="${F==='todos'?'sel':''}">Todos</button>
       <button data-f="gastos" class="${F==='gastos'?'sel':''}">Gastos</button>
@@ -724,23 +753,39 @@ screens.movimientos = (filtro) => {
     <div id="resumen"></div><div id="lista"></div></section>`);
   el.querySelector('.back').onclick=()=>show('finanzas');
   el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ movFiltro=b.dataset.f; show('movimientos'); });
-  (async()=>{ let regs=(await vivos('registros')).filter(r=>r.categoria!=='Plan');
+  (async()=>{ const todos=(await vivos('registros')).filter(r=>r.categoria!=='Plan');
+    // mini-dashboard del mes actual
+    const ym=ymActual(); const mes=todos.filter(r=>ymDe(r.fecha)===ym);
+    let mIng=0,mGas=0,mJor=0; mes.forEach(r=>{ if(r.categoria==='Ingreso')mIng+=num(r.total); else if(r.categoria==='Egreso'){ mGas+=num(r.total); if(r.tipo==='Trabajador')mJor+=num(r.total); } });
+    const resumen=el.querySelector('#resumen');
+    resumen.appendChild(h(`<div class="kpi-grid" style="margin-bottom:12px">
+      <div class="kpi wide"><div><div class="kl">Balance de ${ymLabel(ym).split(' ')[0]}</div><div class="kv ${mIng-mGas>=0?'pos':'neg'}">${money(mIng-mGas)}</div></div></div>
+      <div class="kpi"><div class="kl">Ingresos</div><div class="kv pos">${money(mIng)}</div></div>
+      <div class="kpi"><div class="kl">Gastos</div><div class="kv neg">${money(mGas)}</div></div></div>`));
+
+    let regs=todos.slice();
     if(F==='gastos') regs=regs.filter(r=>r.categoria==='Egreso'&&r.tipo!=='Trabajador');
     else if(F==='ventas') regs=regs.filter(r=>r.categoria==='Ingreso');
     else if(F==='trabajador') regs=regs.filter(r=>r.tipo==='Trabajador');
-    regs=regs.sort((a,b)=>b.creado-a.creado).slice(0,80);
+    regs=regs.sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.creado-a.creado).slice(0,120);
     const lista=el.querySelector('#lista');
+    const totF=regs.reduce((t,r)=>t+num(r.total),0);
+    lista.appendChild(h(`<div class="line" style="padding:4px 4px 10px"><span class="k" style="color:var(--secondary);font-size:.86rem">${regs.length} ${F==='todos'?'movimiento(s)':F} · suma ${money(totF)}</span></div>`));
     if(!regs.length){ lista.appendChild(h(`<div class="empty">${icon('doc')}<div>No hay ${F==='todos'?'movimientos':F} todavía.</div></div>`)); return; }
-    const tot=regs.reduce((t,r)=>t+num(r.total),0);
-    el.querySelector('#resumen').appendChild(h(`<div class="card" style="padding:12px 16px"><div class="line" style="border:none;padding:0"><span class="k">${regs.length} registro(s)</span><span class="v">${money(tot)}</span></div></div>`));
-    const g=h('<div class="lgroup"></div>');
-    regs.forEach(r=>{ const cls=r.categoria==='Ingreso'?'ing':'egr'; const clip=(r.fotoId||r.comprobanteUrl)?' 📎':''; const cj=r.caja===true?' 💵':'';
-      const item=h(`<button class="grow tap"><span class="rdot ${cls}"></span><span class="gtx"><b>${r.nombreDesc}${clip}${cj}</b><small>${r.fecha} · ${r.detalle||''}</small></span><span class="rec-amt ${cls==='ing'?'pos':'neg'}">${r.categoria==='Ingreso'?'+':'−'}${money(r.total)}</span></button>`);
+    // agrupar por fecha para lectura más clara
+    let ultFecha=''; let g=null;
+    regs.forEach(r=>{ if(r.fecha!==ultFecha){ ultFecha=r.fecha;
+        lista.appendChild(h(`<div class="ghead" style="margin:14px 0 6px 4px">${fechaCorta(r.fecha)}</div>`));
+        g=h('<div class="lgroup"></div>'); lista.appendChild(g); }
+      const cls=r.categoria==='Ingreso'?'ing':'egr'; const clip=(r.fotoId||r.comprobanteUrl)?' 📎':''; const cj=r.caja===true?' 💵':'';
+      const item=h(`<button class="grow tap"><span class="rdot ${cls}"></span><span class="gtx"><b>${r.nombreDesc}${clip}${cj}</b><small>${r.detalle||''}</small></span><span class="rec-amt ${cls==='ing'?'pos':'neg'}">${r.categoria==='Ingreso'?'+':'−'}${money(r.total)}</span></button>`);
       item.onclick=()=>abrirRegistro(r); g.appendChild(item); });
-    lista.appendChild(g);
-    lista.appendChild(h(`<p class="hint">💵 = salió de caja chica · 📎 = tiene comprobante</p>`)); })();
+    lista.appendChild(h(`<p class="hint">💵 = caja chica · 📎 = comprobante · Toca un registro para editar o borrar</p>`)); })();
   return el;
 };
+function fechaCorta(iso){ const d=parseFecha(iso); const hoy=parseFecha(hoyISO()); const dif=Math.round((hoy-d)/86400000);
+  if(dif===0) return 'Hoy'; if(dif===1) return 'Ayer';
+  return `${DIAS[d.getDay()]} ${d.getDate()} ${MESES_AB[d.getMonth()]}`; }
 async function abrirRegistro(r){
   const fotoRegSrc=await fotoSrc(r);
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Movimientos</button></div><h1 class="ltitle">Detalle</h1>
@@ -831,14 +876,16 @@ screens.animales = () => {
   const el=h(`<section class="screen"><h1 class="ltitle">Animales</h1>
     <div class="ghead rowh"><span>Inventario ganadero</span><span class="addlink" id="addanimal">+ Agregar</span></div>
     <div id="lista"></div>
-    <div class="ghead rowh" style="margin-top:22px"><span>Producción de leche</span><span class="addlink" id="addleche">+ Registrar</span></div>
+    <button class="btn-outline" id="vacunar" style="margin-top:16px">${icon('spark')} Registrar vacuna a varias vacas</button>
+    <div class="ghead rowh" style="margin-top:16px"><span>Producción de leche</span><span class="addlink" id="addleche">+ Registrar</span></div>
     <div id="lecheresumen"></div></section>`);
   el.querySelector('#addanimal').onclick=()=>editarAnimal(null);
   el.querySelector('#addleche').onclick=()=>show('leche');
+  el.querySelector('#vacunar').onclick=()=>vacunacionGrupal();
   (async()=>{ const animales=(await vivos('animales')).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')); const lista=el.querySelector('#lista');
     if(!animales.length){ lista.appendChild(h(`<div class="empty">${icon('cow')}<div>Aún no hay animales.<br>Toca "+ Agregar" para registrar la primera vaca.</div></div>`)); }
     else{ const g=h('<div class="lgroup inset"></div>');
-      animales.forEach(a=>{ const bcls=a.estado==='Gestante'?'b-gold':a.estado==='Lactando'?'b-green':'b-slate';
+      animales.forEach(a=>{ const bcls=a.estado==='Preñada'?'b-gold':a.estado==='Lactando'?'b-green':a.estado==='Ternero/a'?'b-slate':'b-rust';
         const item=h(`<button class="grow tap"><span class="avatar-ph">${icon('cow')}</span><span class="gtx"><b>${a.nombre||'Sin nombre'}</b><small>${a.raza||''}${a.sexo?' · '+a.sexo:''}</small></span><span class="badge-s ${bcls}">${a.estado||'—'}</span></button>`);
         (async()=>{ const src=await fotoSrc(a); if(src){ const img=h(`<img class="avatar" alt="" src="${src}">`); const ph=item.querySelector('.avatar-ph'); if(ph)ph.replaceWith(img); } })();
         item.onclick=()=>detalleAnimal(a); g.appendChild(item); });
@@ -973,6 +1020,35 @@ function agregarSalud(a){
     await put('salud',reg); toast('Registro de salud guardado'); actualizarSync(); sincronizar(); close(); detalleAnimal(a); }});
 }
 
+
+async function vacunacionGrupal(){
+  const animales=(await vivos('animales')).sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||''));
+  if(!animales.length){ toast('Primero agrega vacas'); return; }
+  const sel=new Set();
+  const body=h(`<div>
+    <div class="field"><label>Tipo</label><select id="vtipo">${opts(TIPO_SALUD,'Vacuna')}</select></div>
+    <div class="field"><label>Producto / vacuna</label><input type="text" id="vprod" placeholder="Ej: Carbunco / Fiebre aftosa"></div>
+    <div class="field"><label>Fecha</label><input type="date" id="vfec" value="${hoyISO()}"></div>
+    <div class="field"><label>Nota <span class="soft">· opcional</span></label><input type="text" id="vnota" placeholder="Dosis, lote…"></div>
+    <div class="field"><label>¿A cuáles vacas? <span class="soft">· toca para marcar</span></label>
+      <button type="button" class="linkbtn" id="todas" style="padding:4px">Marcar todas</button>
+      <div class="lgroup" id="vlista"></div></div></div>`);
+  const lista=body.querySelector('#vlista');
+  animales.forEach(a=>{ const row=h(`<button type="button" class="grow tap"><span class="gtx"><b>${a.nombre||'Sin nombre'}</b><small>${a.raza||''}${a.estado?' · '+a.estado:''}</small></span><span class="badge-s b-slate" style="min-width:26px;text-align:center">○</span></button>`);
+    const badge=row.querySelector('.badge-s');
+    row.onclick=()=>{ if(sel.has(a.id)){ sel.delete(a.id); badge.textContent='○'; badge.className='badge-s b-slate'; } else { sel.add(a.id); badge.textContent='✓'; badge.className='badge-s b-green'; } };
+    lista.appendChild(row); });
+  body.querySelector('#todas').onclick=()=>{ const marcarTodas=sel.size<animales.length; sel.clear();
+    lista.querySelectorAll('.grow').forEach((row,i)=>{ const badge=row.querySelector('.badge-s'); if(marcarTodas){ sel.add(animales[i].id); badge.textContent='✓'; badge.className='badge-s b-green'; } else { badge.textContent='○'; badge.className='badge-s b-slate'; } });
+    body.querySelector('#todas').textContent=marcarTodas?'Quitar todas':'Marcar todas'; };
+  openModal('Vacunar varias vacas',body,{okText:'Guardar',onOk:async close=>{
+    if(sel.size===0){ toast('Marca al menos una vaca'); return; }
+    const prod=body.querySelector('#vprod').value.trim(); if(!prod){ toast('Falta el nombre de la vacuna'); return; }
+    const tipo=body.querySelector('#vtipo').value, fecha=body.querySelector('#vfec').value, nota=body.querySelector('#vnota').value.trim();
+    for(const id of sel){ const reg={id:nuevoId(),animalId:id,tipo,producto:prod,fecha,nota,sync:'pend',modificado:Date.now(),creado:Date.now()}; await put('salud',reg); }
+    toast(`${tipo} registrada en ${sel.size} vaca(s)`); actualizarSync(); sincronizar(); close(); }});
+}
+
 screens.leche = () => {
   const st={fecha:hoyISO(),destino:'Producida',animalId:''};
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Animales</button></div>
@@ -1093,60 +1169,82 @@ screens.mas = () => {
   return el;
 };
 
-let semanaTab='plan';
 screens.semana = () => {
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div>
-    <h1 class="ltitle">Tareas de la semana</h1>
-    <div class="seg"><button data-m="plan" class="${semanaTab==='plan'?'sel':''}">Plan (a hacer)</button><button data-m="hechas" class="${semanaTab==='hechas'?'sel':''}">Realizadas</button></div>
-    <div id="semcont"></div></section>`);
+    <h1 class="ltitle">Tareas a realizar</h1>
+    <div id="semcont"></div>
+    <div class="ghead" style="margin-top:26px">Semanas anteriores</div>
+    <div id="semviejas"></div></section>`);
   el.querySelector('.back').onclick=()=>show('mas');
-  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ semanaTab=b.dataset.m; show('semana'); });
-  const cont=el.querySelector('#semcont'); if(semanaTab==='plan') renderPlanForm(cont); else renderRealizadas(cont);
+  renderPlanForm(el.querySelector('#semcont'));
+  renderSemanasViejas(el.querySelector('#semviejas'));
   return el;
 };
-function renderPlanForm(cont){
-  const plan={semana:semanaLabelActual(),vacas:[...VACAS_FIJAS],tareas:[]}; cont.innerHTML='';
+async function renderSemanasViejas(cont){ cont.innerHTML='';
+  const semActual=semanaLabelActual();
+  const regs=(await vivos('registros')).filter(r=>r.tipo==='Planificador'&&(r.detalle||r.semana)!==semActual).sort((a,b)=>b.creado-a.creado);
+  if(!regs.length){ cont.appendChild(h(`<p class="hint" style="text-align:center;padding:8px">Aquí quedarán guardadas las semanas pasadas.</p>`)); return; }
+  const chips=h('<div class="chips" style="margin-bottom:14px"></div>'); const det=h('<div></div>');
+  const semanas=[...new Set(regs.map(r=>r.detalle||r.semana))];
+  function mostrar(sem){ chips.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c.textContent===sem)); det.innerHTML='';
+    const r=regs.find(x=>(x.detalle||x.semana)===sem); if(!r) return;
+    let data; try{data=JSON.parse(r.notas);}catch{data={vacas:[],tareas:[]};} const vacas=data.vacas||[],tareas=data.tareas||[];
+    const card=h(`<div class="card"><h3>${sem}</h3></div>`);
+    if(vacas.length){ const vg=h('<div class="lgroup" style="margin-bottom:12px"></div>'); vacas.forEach((v,i)=>vg.appendChild(h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${v}</span></div>`))); card.appendChild(vg); }
+    if(tareas.length){ const tg=h('<div class="lgroup"></div>'); tareas.forEach((t,i)=>tg.appendChild(h(`<div class="plan-item"><span class="n">${vacas.length+i+1}</span><span class="tx">${t}</span></div>`))); card.appendChild(tg); }
+    const gen=h(`<button class="btn-outline" style="margin-top:8px">${icon('spark')} Generar imagen</button>`);
+    gen.onclick=async()=>{ gen.textContent='Generando…'; const blob=await generarPlanImagen({semana:sem,vacas,tareas}); const pv=h('<div style="margin-top:10px"></div>');
+      pv.appendChild(h(`<img alt="" src="${blobURL(blob)}" style="width:100%;border-radius:14px;box-shadow:var(--shadow-card)">`)); const sh=h(`<button class="save" style="margin-top:10px">${icon('share')} Compartir</button>`); sh.onclick=()=>compartir(blob,`Tareas_${sem.replace(/\s+/g,'_')}.png`); pv.appendChild(sh); card.appendChild(pv); gen.style.display='none'; };
+    card.appendChild(gen);
+    const del=h(`<button class="danger-link" style="margin-top:6px">Eliminar</button>`); del.onclick=async()=>{ if(!confirm('¿Eliminar esta semana?'))return; await borrarReg('registros',r.id); toast('Eliminada'); renderSemanasViejas(cont); }; card.appendChild(del);
+    det.appendChild(card); }
+  semanas.forEach(sem=>{ const c=h('<button type="button" class="chip"></button>'); c.textContent=sem; c.onclick=()=>mostrar(sem); chips.appendChild(c); });
+  cont.appendChild(chips); cont.appendChild(det); mostrar(semanas[0]);
+}
+async function renderPlanForm(cont){
+  cont.innerHTML='';
+  const semLabel=semanaLabelActual();
+  // cargar el plan de ESTA semana si ya existe, para poder seguir editándolo
+  const existentes=(await vivos('registros')).filter(r=>r.tipo==='Planificador'&&(r.detalle||r.semana)===semLabel).sort((a,b)=>b.creado-a.creado);
+  let regId=null, plan={semana:semLabel,vacas:[...VACAS_FIJAS],tareas:[]};
+  if(existentes.length){ regId=existentes[0].id; try{ const d=JSON.parse(existentes[0].notas); plan.vacas=d.vacas||plan.vacas; plan.tareas=d.tareas||[]; }catch(e){} }
+
   const wrap=h(`<div>
-    <div class="field"><label>Semana</label><input type="text" id="sem" value="${plan.semana}"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:2px 4px 14px"><span class="pill-ok">${semLabel}</span><span class="hint" id="estado" style="margin:0"></span></div>
     <div class="field"><label>Tareas de las vacas <span class="soft">· todos los días</span></label><div class="lgroup" id="vacas"></div><button type="button" class="linkbtn" id="addvaca">+ Agregar tarea de vacas</button></div>
-    <div class="field"><label>Tareas de la semana</label><div id="comunes" style="margin-bottom:10px"></div><div class="lgroup" id="tareas" style="display:none"></div><button type="button" class="linkbtn" id="addtarea">+ Escribir otra tarea</button></div>
-    <button class="save" id="gen">${icon('spark')} Generar imagen para enviar</button><div id="planprev"></div>
-    <button class="btn-outline" id="guardar" style="margin-top:12px">Guardar en registros</button></div>`);
-  cont.appendChild(wrap); wrap.querySelector('#sem').oninput=e=>plan.semana=e.target.value;
+    <div class="field"><label>Tareas de la semana <span class="soft">· escribe y se van guardando</span></label><div class="lgroup" id="tareas" style="display:none"></div>
+      <div class="row2" style="margin-top:8px"><input type="text" id="nueva" placeholder="Escribe una tarea…" style="flex:1"><button type="button" class="save" id="addtarea" style="margin:0;width:auto;padding:0 20px;min-height:var(--tap)">Añadir</button></div></div>
+    <button class="save" id="gen" style="margin-top:18px">${icon('spark')} Generar imagen para enviar</button><div id="planprev"></div></div>`);
+  cont.appendChild(wrap);
+  const marcarEstado=(t)=>{ const e=wrap.querySelector('#estado'); if(e){ e.textContent=t||'Guardado ✓'; } };
+
+  async function guardar(){ 
+    const limpio={vacas:plan.vacas.filter(x=>x&&x.trim()),tareas:plan.tareas.filter(x=>x&&x.trim())};
+    if(regId){ const r=await get('registros',regId); if(r){ r.notas=JSON.stringify(limpio); r.cantidad=limpio.tareas.length; r.sync='pend'; r.modificado=Date.now(); await put('registros',r); } }
+    else { const reg={id:nuevoId(),fecha:hoyISO(),tipo:'Planificador',nombreDesc:'Plan de la semana',detalle:semLabel,cantidad:limpio.tareas.length,unidad:'tareas',precio:0,total:0,categoria:'Plan',notas:JSON.stringify(limpio),semana:semLabel,fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+      await put('registros',reg); regId=reg.id; }
+    marcarEstado('Guardado ✓'); actualizarSync(); sincronizar(); }
+
   function renderVacas(){ const c=wrap.querySelector('#vacas'); c.innerHTML=''; plan.vacas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="rm">✕</button></div>`);
-    row.querySelector('input').value=t; row.querySelector('input').oninput=e=>plan.vacas[i]=e.target.value; row.querySelector('.rm').onclick=()=>{ plan.vacas.splice(i,1); renderVacas(); }; c.appendChild(row); }); }
+    const inp=row.querySelector('input'); inp.value=t; inp.oninput=e=>{ plan.vacas[i]=e.target.value; marcarEstado('Escribiendo…'); };
+    inp.onblur=()=>guardar(); row.querySelector('.rm').onclick=()=>{ plan.vacas.splice(i,1); renderVacas(); guardar(); }; c.appendChild(row); }); }
   renderVacas(); wrap.querySelector('#addvaca').onclick=()=>{ plan.vacas.push(''); renderVacas(); };
-  const chips=h('<div class="chips"></div>'); TAREAS_COMUNES.forEach(t=>{ const c=h(`<button type="button" class="chip">${t.replace(/\.$/,'')}</button>`); c.onclick=()=>{ if(!plan.tareas.includes(t)){ plan.tareas.push(t); renderTareas(); } }; chips.appendChild(c); }); wrap.querySelector('#comunes').appendChild(chips);
-  function renderTareas(){ const c=wrap.querySelector('#tareas'); c.innerHTML=''; c.style.display=plan.tareas.length?'block':'none'; plan.tareas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${t}</span><button type="button" class="mv" data-up>↑</button><button type="button" class="mv" data-dn>↓</button><button type="button" class="rm">✕</button></div>`);
-    row.querySelector('[data-up]').onclick=()=>{ if(i>0){ [plan.tareas[i-1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i-1]]; renderTareas(); } }; row.querySelector('[data-dn]').onclick=()=>{ if(i<plan.tareas.length-1){ [plan.tareas[i+1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i+1]]; renderTareas(); } };
-    row.querySelector('.rm').onclick=()=>{ plan.tareas.splice(i,1); renderTareas(); }; c.appendChild(row); }); }
-  renderTareas(); wrap.querySelector('#addtarea').onclick=()=>askText('Nueva tarea','Escribe la tarea','',v=>{ let t=v.trim(); if(!/[.!?]$/.test(t))t+='.'; plan.tareas.push(t); renderTareas(); });
-  wrap.querySelector('#gen').onclick=async()=>{ wrap.querySelector('#gen').textContent='Generando…'; const blob=await generarPlanImagen(plan);
+
+  function renderTareas(){ const c=wrap.querySelector('#tareas'); c.innerHTML=''; c.style.display=plan.tareas.length?'block':'none'; plan.tareas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="mv" data-up>↑</button><button type="button" class="mv" data-dn>↓</button><button type="button" class="rm">✕</button></div>`);
+    const inp=row.querySelector('input'); inp.value=t; inp.oninput=e=>{ plan.tareas[i]=e.target.value; marcarEstado('Escribiendo…'); }; inp.onblur=()=>guardar();
+    row.querySelector('[data-up]').onclick=()=>{ if(i>0){ [plan.tareas[i-1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i-1]]; renderTareas(); guardar(); } }; row.querySelector('[data-dn]').onclick=()=>{ if(i<plan.tareas.length-1){ [plan.tareas[i+1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i+1]]; renderTareas(); guardar(); } };
+    row.querySelector('.rm').onclick=()=>{ plan.tareas.splice(i,1); renderTareas(); guardar(); }; c.appendChild(row); }); }
+  renderTareas();
+  const agregar=()=>{ const inp=wrap.querySelector('#nueva'); const v=inp.value.trim(); if(!v) return; plan.tareas.push(v); inp.value=''; renderTareas(); guardar(); inp.focus(); };
+  wrap.querySelector('#addtarea').onclick=agregar;
+  wrap.querySelector('#nueva').onkeydown=e=>{ if(e.key==='Enter') agregar(); };
+
+  wrap.querySelector('#gen').onclick=async()=>{ await guardar(); wrap.querySelector('#gen').textContent='Generando…';
+    const blob=await generarPlanImagen({semana:plan.semana,vacas:plan.vacas.filter(x=>x&&x.trim()),tareas:plan.tareas.filter(x=>x&&x.trim())});
     const prev=wrap.querySelector('#planprev'); prev.innerHTML=''; prev.style.display='block'; prev.appendChild(h(`<img alt="Tareas" src="${blobURL(blob)}">`));
     const share=h(`<button class="save" style="margin-top:12px">${icon('share')} Compartir / Descargar</button>`); share.onclick=()=>compartir(blob,`Tareas_${plan.semana.replace(/\s+/g,'_')}.png`); prev.appendChild(share);
     wrap.querySelector('#gen').innerHTML=icon('spark')+' Generar de nuevo'; try{ prev.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} };
-  wrap.querySelector('#guardar').onclick=async()=>{ const reg={id:nuevoId(),fecha:hoyISO(),tipo:'Planificador',nombreDesc:'Plan de la semana',detalle:plan.semana,cantidad:plan.tareas.length,unidad:'tareas',precio:0,total:0,categoria:'Plan',notas:JSON.stringify({vacas:plan.vacas,tareas:plan.tareas}),semana:plan.semana,fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
-    await put('registros',reg); toast('Guardado en registros'); actualizarSync(); sincronizar(); };
-}
-async function renderRealizadas(cont){ cont.innerHTML='';
-  const regs=(await vivos('registros')).filter(r=>r.tipo==='Planificador').sort((a,b)=>b.creado-a.creado);
-  if(!regs.length){ cont.appendChild(h(`<div class="empty">${icon('calendar')}<div>Todavía no hay planes guardados.<br>Crea uno en "Plan" y guárdalo.</div></div>`)); return; }
-  const semanas=[...new Set(regs.map(r=>r.detalle||r.semana))];
-  cont.appendChild(h(`<div class="field"><label>Elige la semana</label></div>`));
-  const chips=h('<div class="chips" style="margin-bottom:18px"></div>'); const detalle=h('<div></div>');
-  function mostrar(sem){ chips.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c.textContent===sem)); detalle.innerHTML='';
-    regs.filter(r=>(r.detalle||r.semana)===sem).forEach(r=>{ let data; try{data=JSON.parse(r.notas);}catch{data={vacas:[],tareas:[]};} const vacas=data.vacas||[],tareas=data.tareas||[];
-      const card=h(`<div class="card"><h3>${r.nombreDesc.toUpperCase()} · ${r.fecha}</h3></div>`);
-      if(vacas.length){ card.appendChild(h(`<div style="font-size:.82rem;font-weight:600;color:var(--secondary);margin-bottom:6px">VACAS (TODOS LOS DÍAS)</div>`)); const vg=h('<div class="lgroup" style="margin-bottom:14px"></div>'); vacas.forEach((v,i)=>vg.appendChild(h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${v}</span></div>`))); card.appendChild(vg); }
-      if(tareas.length){ card.appendChild(h(`<div style="font-size:.82rem;font-weight:600;color:var(--secondary);margin-bottom:6px">TAREAS DE LA SEMANA</div>`)); const tg=h('<div class="lgroup" style="margin-bottom:10px"></div>'); tareas.forEach((t,i)=>tg.appendChild(h(`<div class="plan-item"><span class="n">${vacas.length+i+1}</span><span class="tx">${t}</span></div>`))); card.appendChild(tg); }
-      const regen=h(`<button class="btn-outline" style="margin-top:6px">${icon('spark')} Generar imagen de este plan</button>`);
-      regen.onclick=async()=>{ regen.textContent='Generando…'; const blob=await generarPlanImagen({modo:'hechas',semana:r.detalle||r.semana,vacas,tareas}); const prev=h('<div style="margin-top:10px"></div>');
-        prev.appendChild(h(`<img alt="Realizadas" src="${blobURL(blob)}" style="width:100%;border-radius:14px;box-shadow:var(--shadow-card)">`)); const share=h(`<button class="save" style="margin-top:10px">${icon('share')} Compartir / Descargar</button>`); share.onclick=()=>compartir(blob,`Realizadas_${(r.detalle||r.semana).replace(/\s+/g,'_')}.png`); prev.appendChild(share); card.appendChild(prev); regen.style.display='none'; };
-      card.appendChild(regen);
-      const delBtn=h(`<button class="danger-link" style="margin-top:6px">Eliminar este plan</button>`); delBtn.onclick=async()=>{ if(!confirm('¿Eliminar este plan?'))return; await borrarReg('registros',r.id); toast('Plan eliminado'); actualizarSync(); renderRealizadas(cont); }; card.appendChild(delBtn);
-      detalle.appendChild(card); }); }
-  semanas.forEach(sem=>{ const c=h(`<button type="button" class="chip"></button>`); c.textContent=sem; c.onclick=()=>mostrar(sem); chips.appendChild(c); });
-  cont.appendChild(chips); cont.appendChild(detalle); mostrar(semanas[0]);
+  marcarEstado(regId?'Guardado ✓':'Nuevo');
 }
 async function compartir(blob,filename){ try{ const file=new File([blob],filename,{type:'image/png'}); if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'Tareas Finca La Esperanza'}); return; } }catch(e){}
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); toast('Imagen descargada'); }
