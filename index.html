@@ -191,6 +191,33 @@
   .lightbox .lbinfo{color:#fff;padding:16px 20px calc(env(safe-area-inset-bottom) + 20px);text-align:center;}
   .lightbox .lbinfo b{display:block;font-size:1.05rem;} .lightbox .lbinfo small{color:#B8B8BE;}
   .lightbox .lbdel{background:none;border:none;color:#FF6B5B;font-weight:600;font-size:1rem;cursor:pointer;margin-top:14px;padding:8px;}
+  .hero-neta{background:linear-gradient(135deg,#137A4F,#0F6341);border-radius:var(--radius-lg);padding:22px 22px 20px;color:#fff;box-shadow:0 8px 24px rgba(19,122,79,.28);margin-bottom:16px;}
+  .hero-neta.rojo{background:linear-gradient(135deg,#C0472B,#9E3A22);box-shadow:0 8px 24px rgba(187,77,44,.28);}
+  .hero-neta .hl{font-size:.82rem;opacity:.85;font-weight:600;letter-spacing:.2px;}
+  .hero-neta .hv{font-size:2.5rem;font-weight:800;letter-spacing:-.8px;line-height:1.1;margin:2px 0 14px;font-variant-numeric:tabular-nums;}
+  .hero-neta .hbar{display:flex;height:9px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.25);}
+  .hero-neta .hbar i{display:block;height:100%;}
+  .hero-neta .hleg{display:flex;justify-content:space-between;margin-top:8px;font-size:.8rem;opacity:.95;}
+  .hero-neta .hleg b{font-weight:700;}
+  .hero-neta .hcompare{margin-top:12px;font-size:.84rem;background:rgba(255,255,255,.15);border-radius:10px;padding:7px 11px;display:flex;justify-content:space-between;align-items:center;}
+  .catbar{margin-bottom:13px;}
+  .catbar .ct{display:flex;justify-content:space-between;font-size:.92rem;margin-bottom:5px;}
+  .catbar .ct .cn{font-weight:600;} .catbar .ct .cv{font-variant-numeric:tabular-nums;color:var(--secondary);}
+  .catbar .track{height:10px;border-radius:6px;background:#EDEDF0;overflow:hidden;}
+  .catbar .track i{display:block;height:100%;border-radius:6px;}
+  .statrow{display:flex;gap:12px;margin-bottom:16px;}
+  .statmini{flex:1;background:var(--surface);border-radius:14px;padding:13px 14px;box-shadow:var(--shadow-card);text-align:center;}
+  .statmini .sl{font-size:.74rem;color:var(--secondary);font-weight:600;}
+  .statmini .sv{font-size:1.35rem;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums;}
+  .donut-wrap{display:flex;align-items:center;gap:18px;background:var(--surface);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow-card);margin-bottom:16px;}
+  .donut-wrap svg{flex:0 0 auto;}
+  .donut-leg{flex:1;} .donut-leg .dl{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.94rem;}
+  .donut-leg .dl i{width:12px;height:12px;border-radius:4px;flex:0 0 auto;} .donut-leg .dl .dv{margin-left:auto;font-weight:700;font-variant-numeric:tabular-nums;}
+  .donawrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .dona{width:128px;height:128px;flex:0 0 auto;}
+  .donaleg{flex:1;min-width:140px;display:flex;flex-direction:column;gap:8px;}
+  .dl{display:flex;align-items:center;gap:8px;font-size:.9rem;} .dl .dd{width:11px;height:11px;border-radius:3px;flex:0 0 auto;}
+  .dl .dk{flex:1;min-width:0;color:var(--label);} .dl .dv{color:var(--secondary);font-variant-numeric:tabular-nums;font-size:.82rem;font-weight:600;white-space:nowrap;}
   #printarea{display:none;}
   @media print{ body{background:#fff;} .app,#toast,.tabbar,.modal-ov{display:none !important;} #printarea{display:block !important;} }
 </style>
@@ -425,7 +452,7 @@ function askText(title,label,val,cb){ const body=h(`<div class="field"><label>${
 
 const screens={}; let currentScreen='home';
 const TABS=[['home','Inicio','home'],['animales','Animales','cow'],['finanzas','Finanzas','coin'],['analisis','Análisis','chart'],['mas','Más','more']];
-const TAB_OF={home:'home',animales:'animales',animal:'animales',leche:'animales',finanzas:'finanzas',venta:'finanzas',gasto:'finanzas',trabajador:'finanzas',produccion:'finanzas',movimientos:'finanzas',caja:'finanzas',analisis:'analisis',mas:'mas',inventario:'mas',semana:'mas',reportes:'mas',backup:'mas',config:'mas'};
+const TAB_OF={home:'home',animales:'animales',animal:'animales',leche:'animales',finanzas:'finanzas',venta:'finanzas',gasto:'finanzas',trabajador:'finanzas',produccion:'finanzas',movimientos:'finanzas',caja:'finanzas',analisis:'analisis',mas:'mas',inventario:'mas',semana:'mas',planedit:'mas',reportes:'mas',backup:'mas',config:'mas'};
 function renderTabbar(){ const tb=$('#tabbar'); tb.innerHTML=''; TABS.forEach(([scr,label,ico])=>{ const b=h(`<button data-tab="${scr}">${icon(ico)}<span>${label}</span></button>`); b.onclick=()=>show(scr); tb.appendChild(b); }); }
 function highlightTab(){ const a=TAB_OF[currentScreen]||'home'; document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('active',b.dataset.tab===a)); }
 function show(name,arg){ if(name!==currentScreen) sincronizar(); currentScreen=name; view.innerHTML=''; const el=screens[name]?screens[name](arg):screens.home(); view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){} }
@@ -1083,28 +1110,30 @@ screens.inventario = () => {
     inv.forEach(i=>{ (cats[i.categoria]=cats[i.categoria]||[]).push(i); });
     Object.keys(cats).forEach(cat=>{ lista.appendChild(h(`<div class="ghead">${cat}</div>`)); const g=h('<div class="lgroup"></div>');
       cats[cat].forEach(i=>{ let venc=''; if(i.vencimiento){ const d=diasEntre(hoy,i.vencimiento); venc = d<0?`<span class="badge-s b-danger">Vencido</span>`:d<=30?`<span class="badge-s b-gold">Vence pronto</span>`:''; }
-        const item=h(`<button class="grow tap"><span class="gtx"><b>${i.nombre}</b><small>${i.paraQue||'—'}${i.vencimiento?' · vence '+i.vencimiento:''}</small></span>${venc}<span class="gval">${i.stock||0} ${i.unidad||''}</span></button>`);
+        const rinde = i.rindeVacas?` · para ${i.rindeVacas} vaca(s)`:'';
+        const item=h(`<button class="grow tap"><span class="gtx"><b>${i.nombre}</b><small>${i.paraQue||'—'}${rinde}${i.vencimiento?' · vence '+i.vencimiento:''}</small></span>${venc}<span class="gval">${i.stock||0} ${i.unidad||''}</span></button>`);
         item.onclick=()=>editarInsumo(i); g.appendChild(item); });
       lista.appendChild(g); });
   })();
   return el;
 };
 function editarInsumo(i){
-  const isNew=!i; i=i||{id:nuevoId(),nombre:'',categoria:'Medicina',paraQue:'',stock:0,unidad:'',vencimiento:'',notas:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+  const isNew=!i; i=i||{id:nuevoId(),nombre:'',categoria:'Medicina',paraQue:'',stock:0,unidad:'',rindeVacas:'',vencimiento:'',notas:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
   const body=h(`<div>
     <div class="field"><label>Nombre</label><input type="text" id="nombre" placeholder="Ej: Vacuna carbunco"></div>
     <div class="field"><label>Categoría</label><select id="cat">${opts(CAT_INV,i.categoria)}</select></div>
     <div class="field"><label>¿Para qué sirve?</label><input type="text" id="para" placeholder="Ej: previene el carbunco en el ganado"></div>
     <div class="row2"><div class="field"><label>Stock</label><input type="text" id="stock" inputmode="decimal"></div>
       <div class="field"><label>Unidad</label><input type="text" id="unidad" placeholder="frascos / kg / u"></div></div>
+    <div class="field"><label>¿Para cuántas vacas alcanza? <span class="soft">· opcional</span></label><input type="text" id="rinde" inputmode="numeric" placeholder="Ej: 10"></div>
     <div class="field"><label>Vencimiento <span class="soft">· opcional</span></label><input type="date" id="venc" value="${i.vencimiento||''}"></div></div>`);
-  body.querySelector('#nombre').value=i.nombre||''; body.querySelector('#para').value=i.paraQue||''; body.querySelector('#stock').value=i.stock||''; body.querySelector('#unidad').value=i.unidad||'';
-  const m=openModal(isNew?'Nuevo insumo':'Editar insumo',body,{onOk:async close=>{ i.nombre=body.querySelector('#nombre').value.trim(); i.categoria=body.querySelector('#cat').value; i.paraQue=body.querySelector('#para').value.trim(); i.stock=num(body.querySelector('#stock').value); i.unidad=body.querySelector('#unidad').value.trim(); i.vencimiento=body.querySelector('#venc').value; i.sync='pend'; i.modificado=Date.now();
+  body.querySelector('#nombre').value=i.nombre||''; body.querySelector('#para').value=i.paraQue||''; body.querySelector('#stock').value=i.stock||''; body.querySelector('#unidad').value=i.unidad||''; body.querySelector('#rinde').value=i.rindeVacas||'';
+  const m=openModal(isNew?'Nuevo insumo':'Editar insumo',body,{onOk:async close=>{ i.nombre=body.querySelector('#nombre').value.trim(); i.categoria=body.querySelector('#cat').value; i.paraQue=body.querySelector('#para').value.trim(); i.stock=num(body.querySelector('#stock').value); i.unidad=body.querySelector('#unidad').value.trim(); i.rindeVacas=body.querySelector('#rinde').value.trim(); i.vencimiento=body.querySelector('#venc').value; i.sync='pend'; i.modificado=Date.now();
     if(!i.nombre){ toast('Falta el nombre'); return; } await put('inventario',i); toast(isNew?'Insumo agregado':'Insumo actualizado'); actualizarSync(); sincronizar(); close(); show('inventario'); }});
   if(!isNew){ const extra=h(`<button class="danger-link" style="margin-top:10px">Eliminar insumo</button>`); extra.onclick=async()=>{ if(!confirm('¿Eliminar?'))return; await borrarReg('inventario',i.id); toast('Insumo eliminado'); m.close(); show('inventario'); }; body.appendChild(extra); }
 }
 
-let anaPeriodo='mes'; let anaMes=ymActual(); let anaAnio=new Date().getFullYear();
+let anaPeriodo='mes'; let anaMes=ymActual(); let anaAnio=new Date().getFullYear(); let anaVista='ambos';
 screens.analisis = () => {
   const el=h(`<section class="screen"><h1 class="ltitle">Análisis</h1>
     <div class="seg">
@@ -1126,35 +1155,96 @@ screens.analisis = () => {
     const ing={},egr={}; let mano=0,tI=0,tE=0;
     filt.forEach(r=>{ if(r.categoria==='Ingreso'){ ing[r.nombreDesc]=(ing[r.nombreDesc]||0)+r.total; tI+=r.total; } else { tE+=r.total; if(r.tipo==='Trabajador')mano+=r.total; else egr[r.nombreDesc]=(egr[r.nombreDesc]||0)+r.total; } });
     const neta=tI-tE; const margen=tI>0?Math.round(neta/tI*100):0;
-    cont.appendChild(h(`<div class="card"><div class="bigline"><span class="k">Ganancia neta</span><span class="v ${neta>=0?'pos':'neg'}">${money(neta)}</span></div></div>`));
+    const tot=tI+tE||1; const pctI=Math.round(tI/tot*100);
+
+    // --- HERO: ganancia neta con barra proporción ---
+    let compara='';
     if(anaPeriodo==='mes'){ const prev=ymShift(anaMes,-1); let pI=0,pE=0; regs.forEach(r=>{ if(ymDe(r.fecha)===prev){ if(r.categoria==='Ingreso')pI+=r.total; else if(r.categoria==='Egreso')pE+=r.total; } }); const pNeta=pI-pE; const delta=neta-pNeta;
-      cont.appendChild(h(`<div class="card"><div class="line"><span class="k">Mes anterior (${ymLabel(prev)})</span><span class="v">${money(pNeta)}</span></div><div class="line"><span class="k">Diferencia</span><span class="v ${delta>=0?'pos':'neg'}">${delta>=0?'+':''}${money(delta)}</span></div><div class="line"><span class="k">Margen</span><span class="v">${margen}%</span></div></div>`)); }
-    const cI=h('<div class="card"><h3>INGRESOS</h3></div>'); Object.keys(ing).forEach(k=>cI.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${money(ing[k])}</span></div>`)));
-    cI.appendChild(h(`<div class="line"><span class="k"><b>Total ingresos</b></span><span class="v">${money(tI)}</span></div>`)); cont.appendChild(cI);
-    const cE=h('<div class="card"><h3>EGRESOS</h3></div>'); if(mano)cE.appendChild(h(`<div class="line"><span class="k">Mano de obra</span><span class="v">${money(mano)}</span></div>`));
-    Object.keys(egr).forEach(k=>cE.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${money(egr[k])}</span></div>`)));
-    cE.appendChild(h(`<div class="line"><span class="k"><b>Total egresos</b></span><span class="v">${money(tE)}</span></div>`)); cont.appendChild(cE);
-    const prP=prod.filter(enP); if(prP.length){ const byProd={}; prP.forEach(r=>{ const k=r.producto+' ('+(r.unidad||'')+')'; byProd[k]=(byProd[k]||0)+num(r.cantidad); });
-      const cP=h('<div class="card"><h3>PRODUCCIÓN</h3></div>'); Object.keys(byProd).forEach(k=>cP.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${byProd[k]}</span></div>`))); cont.appendChild(cP); }
-    // Cacao vendido por estado (baba / semi seco / seco)
+      compara=`<div class="hcompare"><span>vs mes anterior</span><b>${delta>=0?'▲ +':'▼ '}${money(Math.abs(delta))}</b></div>`; }
+    cont.appendChild(h(`<div class="hero-neta ${neta>=0?'':'rojo'}">
+      <div class="hl">GANANCIA ${anaPeriodo==='dia'?'DE HOY':anaPeriodo==='semana'?'DE LA SEMANA':anaPeriodo==='mes'?'DEL MES':'DEL AÑO'}</div>
+      <div class="hv">${money(neta)}</div>
+      <div class="hbar"><i style="width:${pctI}%;background:#8FE9BE"></i><i style="width:${100-pctI}%;background:#F5B7A6"></i></div>
+      <div class="hleg"><span>Ingresos <b>${money(tI)}</b></span><span>Egresos <b>${money(tE)}</b></span></div>
+      ${compara}</div>`));
+
+    // --- mini stats: margen + n registros ---
+    cont.appendChild(h(`<div class="statrow">
+      <div class="statmini"><div class="sl">Margen</div><div class="sv ${margen>=0?'pos':'neg'}">${margen}%</div></div>
+      <div class="statmini"><div class="sl">Movimientos</div><div class="sv">${filt.length}</div></div>
+    </div>`));
+
+    // --- barras horizontales: de dónde viene el dinero ---
+    if(Object.keys(ing).length){ const card=h('<div class="card"><h3>DE DÓNDE VIENE EL DINERO</h3></div>');
+      const maxI=Math.max(...Object.values(ing));
+      Object.entries(ing).sort((a,b)=>b[1]-a[1]).forEach(([k,v])=>{ card.appendChild(h(`<div class="catbar"><div class="ct"><span class="cn">${k}</span><span class="cv">${money(v)}</span></div><div class="track"><i style="width:${Math.max(6,v/maxI*100)}%;background:linear-gradient(90deg,#1AA968,#137A4F)"></i></div></div>`)); });
+      cont.appendChild(card); }
+
+    // --- DONA: en qué se va el dinero ---
+    const egrTot=Object.assign({}, egr); if(mano) egrTot['Mano de obra']=mano;
+    if(Object.keys(egrTot).length){ cont.appendChild(donaCard('EN QUÉ SE VA EL DINERO', egrTot, tE)); }
+
+    // --- cacao por estado: barras ---
     const cacaoVentas=filt.filter(r=>r.categoria==='Ingreso'&&r.estadoCacao);
-    if(cacaoVentas.length){ const porEstado={}; const platEstado={};
+    if(cacaoVentas.length){ const porEstado={},platEstado={};
       cacaoVentas.forEach(r=>{ const e=r.estadoCacao; porEstado[e]=(porEstado[e]||0)+num(r.cantidad); platEstado[e]=(platEstado[e]||0)+num(r.total); });
-      const cC=h('<div class="card"><h3>CACAO VENDIDO POR ESTADO</h3></div>');
-      ESTADOS_CACAO.forEach(e=>{ if(porEstado[e]) cC.appendChild(h(`<div class="line"><span class="k">${e}</span><span class="v">${porEstado[e]} lb · ${money(platEstado[e])}</span></div>`)); });
-      cont.appendChild(cC); }
-    const lP=leche.filter(enP); if(lP.length){ const litros=lP.reduce((s,r)=>s+num(r.litros),0); cont.appendChild(h(`<div class="card"><h3>LECHE</h3><div class="line"><span class="k">Total litros</span><span class="v">${litros} L</span></div></div>`)); }
-    cont.appendChild(graficoBarras(filt));
+      const card=h('<div class="card"><h3>CACAO VENDIDO POR ESTADO</h3></div>');
+      const maxC=Math.max(...ESTADOS_CACAO.map(e=>porEstado[e]||0));
+      const colC={'En baba':'#B8871C','Semi seco':'#C89A3A','Seco':'#137A4F'};
+      ESTADOS_CACAO.forEach(e=>{ if(porEstado[e]) card.appendChild(h(`<div class="catbar"><div class="ct"><span class="cn">${e}</span><span class="cv">${porEstado[e]} lb · ${money(platEstado[e])}</span></div><div class="track"><i style="width:${Math.max(6,porEstado[e]/maxC*100)}%;background:${colC[e]||'#137A4F'}"></i></div></div>`)); });
+      cont.appendChild(card); }
+
+    // --- producción + leche: mini stats ---
+    const prP=prod.filter(enP); const lP=leche.filter(enP);
+    if(prP.length||lP.length){ const byProd={}; prP.forEach(r=>{ const k=r.producto; byProd[k]=(byProd[k]||0)+num(r.cantidad); });
+      const litros=lP.reduce((s,r)=>s+num(r.litros),0);
+      const card=h('<div class="card"><h3>PRODUCCIÓN DEL PERIODO</h3></div>');
+      Object.entries(byProd).forEach(([k,v])=>card.appendChild(h(`<div class="line"><span class="k">${k}</span><span class="v">${v}</span></div>`)));
+      if(litros) card.appendChild(h(`<div class="line"><span class="k">Leche</span><span class="v">${litros} L</span></div>`));
+      cont.appendChild(card); }
+
+    // --- evolución diaria con filtros ---
+    const chartCard=h(`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h3 style="margin:0">DÍA A DÍA</h3></div>
+      <div class="seg" style="margin:0 0 12px"><button data-v="ambos" class="${anaVista==='ambos'?'sel':''}">Ambos</button><button data-v="ingresos" class="${anaVista==='ingresos'?'sel':''}">Ingresos</button><button data-v="egresos" class="${anaVista==='egresos'?'sel':''}">Egresos</button></div>
+      <div id="chartzone"></div></div>`);
+    chartCard.querySelector('#chartzone').appendChild(graficoBarras(filt, anaVista));
+    chartCard.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ anaVista=b.dataset.v; show('analisis'); });
+    cont.appendChild(chartCard);
   })();
   return el;
 };
-function graficoBarras(regs){ const byDay={}; regs.forEach(r=>{ byDay[r.fecha]=byDay[r.fecha]||{i:0,e:0}; if(r.categoria==='Ingreso')byDay[r.fecha].i+=r.total; else byDay[r.fecha].e+=r.total; });
-  const dias=Object.keys(byDay).sort().slice(-10); if(!dias.length)return h('<div></div>'); const max=Math.max(1,...dias.map(d=>Math.max(byDay[d].i,byDay[d].e)));
-  const W=460,H=180,pad=24,bw=(W-pad*2)/dias.length; let bars='';
-  dias.forEach((d,i)=>{ const x=pad+i*bw,ih=byDay[d].i/max*(H-50),eh=byDay[d].e/max*(H-50),w=bw*0.28;
-    bars+=`<rect x="${x+bw/2-w-3}" y="${H-30-ih}" width="${w}" height="${ih}" rx="3" fill="#137A4F"/><rect x="${x+bw/2+3}" y="${H-30-eh}" width="${w}" height="${eh}" rx="3" fill="#BB4D2C"/>`;
-    const dd=d.split('-'); bars+=`<text x="${x+bw/2}" y="${H-12}" text-anchor="middle" font-size="11" fill="#8A8A8F">${+dd[2]}/${+dd[1]}</text>`; });
-  return h(`<div class="card"><h3>INGRESOS VS EGRESOS</h3><div class="chart"><svg viewBox="0 0 ${W} ${H}">${bars}</svg></div><div class="legend"><span><i style="background:#137A4F"></i>Ingresos</span><span><i style="background:#BB4D2C"></i>Egresos</span></div></div>`); }
+function graficoBarras(regs, vista='ambos'){ const byDay={}; regs.forEach(r=>{ byDay[r.fecha]=byDay[r.fecha]||{i:0,e:0}; if(r.categoria==='Ingreso')byDay[r.fecha].i+=r.total; else byDay[r.fecha].e+=r.total; });
+  const dias=Object.keys(byDay).sort().slice(-12); if(!dias.length)return h('<p class="hint" style="text-align:center">Sin movimientos para graficar.</p>');
+  const verI=vista!=='egresos', verE=vista!=='ingresos';
+  const max=Math.max(1,...dias.map(d=>Math.max(verI?byDay[d].i:0, verE?byDay[d].e:0)));
+  const W=460,H=190,pad=26,bh=H-52,bw=(W-pad*2)/dias.length; let bars='',ptsI=[],ptsE=[];
+  dias.forEach((d,i)=>{ const cx=pad+i*bw+bw/2; const ih=byDay[d].i/max*bh, eh=byDay[d].e/max*bh;
+    if(vista==='ambos'){ const w=bw*0.3;
+      bars+=`<rect x="${cx-w-2}" y="${H-30-ih}" width="${w}" height="${ih}" rx="3" fill="#1AA968"/><rect x="${cx+2}" y="${H-30-eh}" width="${w}" height="${eh}" rx="3" fill="#D9603F"/>`;
+    } else { const w=bw*0.44; const val=vista==='ingresos'?ih:eh; const col=vista==='ingresos'?'#1AA968':'#D9603F';
+      bars+=`<rect x="${cx-w/2}" y="${H-30-val}" width="${w}" height="${val}" rx="4" fill="${col}"/>`;
+      const monto=vista==='ingresos'?byDay[d].i:byDay[d].e; if(monto>0) bars+=`<text x="${cx}" y="${H-34-val}" text-anchor="middle" font-size="10" font-weight="700" fill="#8A8A8F">${Math.round(monto)}</text>`; }
+    ptsI.push([cx,H-30-ih]); ptsE.push([cx,H-30-eh]);
+    const dd=d.split('-'); bars+=`<text x="${cx}" y="${H-12}" text-anchor="middle" font-size="10" fill="#8A8A8F">${+dd[2]}/${+dd[1]}</text>`; });
+  let leyenda='';
+  if(vista==='ambos') leyenda=`<div class="legend"><span><i style="background:#1AA968"></i>Ingresos</span><span><i style="background:#D9603F"></i>Egresos</span></div>`;
+  else leyenda=`<div class="legend"><span><i style="background:${vista==='ingresos'?'#1AA968':'#D9603F'}"></i>${vista==='ingresos'?'Ingresos':'Egresos'} por día</span></div>`;
+  return h(`<div><div class="chart"><svg viewBox="0 0 ${W} ${H}"><line x1="${pad}" y1="${H-30}" x2="${W-pad+6}" y2="${H-30}" stroke="#E4E4E9" stroke-width="1"/>${bars}</svg></div>${leyenda}</div>`); }
+
+// dona (pie) para desglose de egresos
+function donaCard(titulo, obj, total){
+  const entradas=Object.entries(obj).sort((a,b)=>b[1]-a[1]); const suma=total||entradas.reduce((s,[,v])=>s+v,0)||1;
+  const cols=['#BB4D2C','#D9603F','#E08B5C','#B8871C','#C89A3A','#5E6B78','#1B3A5B','#137A4F'];
+  const R=52,C=64,cir=2*Math.PI*R; let off=0,segs='',leyenda='';
+  entradas.forEach(([k,v],i)=>{ const frac=v/suma; const len=frac*cir; const col=cols[i%cols.length];
+    segs+=`<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${col}" stroke-width="20" stroke-dasharray="${len} ${cir-len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${C} ${C})"/>`;
+    off+=len;
+    leyenda+=`<div class="dl"><span class="dd" style="background:${col}"></span><span class="dk">${k}</span><span class="dv">${money(v)} · ${Math.round(frac*100)}%</span></div>`; });
+  const card=h(`<div class="card"><h3>${titulo}</h3>
+    <div class="donawrap"><svg viewBox="0 0 128 128" class="dona">${segs}<text x="64" y="60" text-anchor="middle" font-size="11" fill="#8A8A8F" font-weight="600">Total</text><text x="64" y="76" text-anchor="middle" font-size="14" fill="#211A14" font-weight="800">${money(suma)}</text></svg>
+    <div class="donaleg">${leyenda}</div></div></div>`);
+  return card;
+}
 
 screens.mas = () => {
   const el=h(`<section class="screen"><h1 class="ltitle">Más</h1>
@@ -1169,83 +1259,109 @@ screens.mas = () => {
   return el;
 };
 
+let planEdit=null;  // reg que se está editando (o null = nuevo)
 screens.semana = () => {
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div>
     <h1 class="ltitle">Tareas a realizar</h1>
-    <div id="semcont"></div>
-    <div class="ghead" style="margin-top:26px">Semanas anteriores</div>
-    <div id="semviejas"></div></section>`);
+    <button class="save" id="nueva">${icon('plus')} Crear semana nueva</button>
+    <div class="ghead" style="margin-top:22px">Semanas guardadas</div>
+    <div id="lista"></div></section>`);
   el.querySelector('.back').onclick=()=>show('mas');
-  renderPlanForm(el.querySelector('#semcont'));
-  renderSemanasViejas(el.querySelector('#semviejas'));
+  el.querySelector('#nueva').onclick=()=>{ planEdit=null; show('planedit'); };
+  (async()=>{ const regs=(await vivos('registros')).filter(r=>r.tipo==='Planificador').sort((a,b)=>b.creado-a.creado);
+    const lista=el.querySelector('#lista');
+    if(!regs.length){ lista.appendChild(h(`<div class="empty">${icon('calendar')}<div>Aún no hay semanas.<br>Toca "Crear semana nueva".</div></div>`)); return; }
+    const semActual=semanaLabelActual();
+    const g=h('<div class="lgroup inset"></div>');
+    regs.forEach(r=>{ let data; try{data=JSON.parse(r.notas);}catch{data={vacas:[],tareas:[]};} const nT=(data.tareas||[]).length;
+      const esta=(r.detalle||r.semana)===semActual;
+      const item=h(`<button class="grow tap">${tile('calendar',esta?'var(--accent)':'var(--slate)')}<span class="gtx"><b>${r.detalle||r.semana}</b><small>${nT} tarea(s)${esta?' · esta semana':''}</small></span><span class="gchev">${icon('chevron')}</span></button>`);
+      item.onclick=()=>detalleSemana(r); g.appendChild(item); });
+    lista.appendChild(g); })();
   return el;
 };
-async function renderSemanasViejas(cont){ cont.innerHTML='';
-  const semActual=semanaLabelActual();
-  const regs=(await vivos('registros')).filter(r=>r.tipo==='Planificador'&&(r.detalle||r.semana)!==semActual).sort((a,b)=>b.creado-a.creado);
-  if(!regs.length){ cont.appendChild(h(`<p class="hint" style="text-align:center;padding:8px">Aquí quedarán guardadas las semanas pasadas.</p>`)); return; }
-  const chips=h('<div class="chips" style="margin-bottom:14px"></div>'); const det=h('<div></div>');
-  const semanas=[...new Set(regs.map(r=>r.detalle||r.semana))];
-  function mostrar(sem){ chips.querySelectorAll('.chip').forEach(c=>c.classList.toggle('sel',c.textContent===sem)); det.innerHTML='';
-    const r=regs.find(x=>(x.detalle||x.semana)===sem); if(!r) return;
-    let data; try{data=JSON.parse(r.notas);}catch{data={vacas:[],tareas:[]};} const vacas=data.vacas||[],tareas=data.tareas||[];
-    const card=h(`<div class="card"><h3>${sem}</h3></div>`);
-    if(vacas.length){ const vg=h('<div class="lgroup" style="margin-bottom:12px"></div>'); vacas.forEach((v,i)=>vg.appendChild(h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${v}</span></div>`))); card.appendChild(vg); }
-    if(tareas.length){ const tg=h('<div class="lgroup"></div>'); tareas.forEach((t,i)=>tg.appendChild(h(`<div class="plan-item"><span class="n">${vacas.length+i+1}</span><span class="tx">${t}</span></div>`))); card.appendChild(tg); }
-    const gen=h(`<button class="btn-outline" style="margin-top:8px">${icon('spark')} Generar imagen</button>`);
-    gen.onclick=async()=>{ gen.textContent='Generando…'; const blob=await generarPlanImagen({semana:sem,vacas,tareas}); const pv=h('<div style="margin-top:10px"></div>');
-      pv.appendChild(h(`<img alt="" src="${blobURL(blob)}" style="width:100%;border-radius:14px;box-shadow:var(--shadow-card)">`)); const sh=h(`<button class="save" style="margin-top:10px">${icon('share')} Compartir</button>`); sh.onclick=()=>compartir(blob,`Tareas_${sem.replace(/\s+/g,'_')}.png`); pv.appendChild(sh); card.appendChild(pv); gen.style.display='none'; };
-    card.appendChild(gen);
-    const del=h(`<button class="danger-link" style="margin-top:6px">Eliminar</button>`); del.onclick=async()=>{ if(!confirm('¿Eliminar esta semana?'))return; await borrarReg('registros',r.id); toast('Eliminada'); renderSemanasViejas(cont); }; card.appendChild(del);
-    det.appendChild(card); }
-  semanas.forEach(sem=>{ const c=h('<button type="button" class="chip"></button>'); c.textContent=sem; c.onclick=()=>mostrar(sem); chips.appendChild(c); });
-  cont.appendChild(chips); cont.appendChild(det); mostrar(semanas[0]);
-}
-async function renderPlanForm(cont){
-  cont.innerHTML='';
-  const semLabel=semanaLabelActual();
-  // cargar el plan de ESTA semana si ya existe, para poder seguir editándolo
-  const existentes=(await vivos('registros')).filter(r=>r.tipo==='Planificador'&&(r.detalle||r.semana)===semLabel).sort((a,b)=>b.creado-a.creado);
-  let regId=null, plan={semana:semLabel,vacas:[...VACAS_FIJAS],tareas:[]};
-  if(existentes.length){ regId=existentes[0].id; try{ const d=JSON.parse(existentes[0].notas); plan.vacas=d.vacas||plan.vacas; plan.tareas=d.tareas||[]; }catch(e){} }
 
-  const wrap=h(`<div>
-    <div style="display:flex;align-items:center;gap:8px;margin:2px 4px 14px"><span class="pill-ok">${semLabel}</span><span class="hint" id="estado" style="margin:0"></span></div>
+async function detalleSemana(r){
+  let data; try{data=JSON.parse(r.notas);}catch{data={vacas:[],tareas:[]};}
+  const vacas=data.vacas||[], tareas=data.tareas||[];
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Semanas</button></div>
+    <h1 class="ltitle">${r.detalle||r.semana}</h1>
+    <div class="ghead">Tareas de las vacas · todos los días</div><div id="vg"></div>
+    <div class="ghead" style="margin-top:18px">Tareas de la semana</div><div id="tg"></div>
+    <button class="save" id="editar" style="margin-top:20px">${icon('edit')} Editar esta semana</button>
+    <button class="btn-outline" id="img" style="margin-top:12px">${icon('spark')} Generar imagen para enviar</button>
+    <div id="prev"></div>
+    <button class="danger-link" id="del" style="margin-top:12px">Eliminar esta semana</button></section>`);
+  el.querySelector('.back').onclick=()=>show('semana');
+  const vg=el.querySelector('#vg');
+  if(vacas.length){ const g=h('<div class="lgroup"></div>'); vacas.forEach((v,i)=>g.appendChild(h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${v}</span></div>`))); vg.appendChild(g); }
+  else vg.appendChild(h(`<p class="hint" style="padding:6px">Sin tareas de vacas.</p>`));
+  const tg=el.querySelector('#tg');
+  if(tareas.length){ const g=h('<div class="lgroup"></div>'); tareas.forEach((t,i)=>g.appendChild(h(`<div class="plan-item"><span class="n">${i+1}</span><span class="tx">${t}</span></div>`))); tg.appendChild(g); }
+  else tg.appendChild(h(`<p class="hint" style="padding:6px">Sin tareas todavía. Toca "Editar" para agregar.</p>`));
+  el.querySelector('#editar').onclick=()=>{ planEdit=r; show('planedit'); };
+  el.querySelector('#img').onclick=async()=>{ const b=el.querySelector('#img'); b.textContent='Generando…';
+    const blob=await generarPlanImagen({semana:r.detalle||r.semana,vacas,tareas}); const prev=el.querySelector('#prev'); prev.innerHTML='';
+    prev.appendChild(h(`<img alt="" src="${blobURL(blob)}" style="width:100%;border-radius:14px;box-shadow:var(--shadow-card);margin-top:12px">`));
+    const sh=h(`<button class="save" style="margin-top:10px">${icon('share')} Compartir / Descargar</button>`); sh.onclick=()=>compartir(blob,`Tareas_${(r.detalle||r.semana).replace(/\s+/g,'_')}.png`); prev.appendChild(sh);
+    b.innerHTML=icon('spark')+' Generar de nuevo'; };
+  el.querySelector('#del').onclick=async()=>{ if(!confirm('¿Eliminar esta semana?'))return; await borrarReg('registros',r.id); toast('Semana eliminada'); show('semana'); };
+  currentScreen='semana'; view.innerHTML=''; view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){}
+}
+
+screens.planedit = () => {
+  const r=planEdit;  // null = nueva
+  const esNueva=!r;
+  let plan, regId=null, semLabel;
+  if(r){ regId=r.id; semLabel=r.detalle||r.semana; try{ const d=JSON.parse(r.notas); plan={vacas:d.vacas||[...VACAS_FIJAS],tareas:d.tareas||[]}; }catch{ plan={vacas:[...VACAS_FIJAS],tareas:[]}; } }
+  else { semLabel=semanaLabelActual(); plan={vacas:[...VACAS_FIJAS],tareas:[]}; }
+
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} ${esNueva?'Semanas':'Detalle'}</button></div>
+    <h1 class="ltitle">${esNueva?'Nueva semana':'Editar semana'}</h1>
+    <div class="field"><label>Semana</label><input type="text" id="sem" value="${semLabel}"></div>
     <div class="field"><label>Tareas de las vacas <span class="soft">· todos los días</span></label><div class="lgroup" id="vacas"></div><button type="button" class="linkbtn" id="addvaca">+ Agregar tarea de vacas</button></div>
     <div class="field"><label>Tareas de la semana <span class="soft">· escribe y se van guardando</span></label><div class="lgroup" id="tareas" style="display:none"></div>
       <div class="row2" style="margin-top:8px"><input type="text" id="nueva" placeholder="Escribe una tarea…" style="flex:1"><button type="button" class="save" id="addtarea" style="margin:0;width:auto;padding:0 20px;min-height:var(--tap)">Añadir</button></div></div>
-    <button class="save" id="gen" style="margin-top:18px">${icon('spark')} Generar imagen para enviar</button><div id="planprev"></div></div>`);
-  cont.appendChild(wrap);
-  const marcarEstado=(t)=>{ const e=wrap.querySelector('#estado'); if(e){ e.textContent=t||'Guardado ✓'; } };
+    <div style="display:flex;align-items:center;gap:8px;margin:14px 4px"><span class="pill-ok" id="estado">${esNueva?'Nueva':'Guardado ✓'}</span></div>
+    <button class="save" id="gen" style="margin-top:6px">${icon('spark')} Generar imagen para enviar</button><div id="planprev"></div>
+    <button class="btn-outline" id="listo" style="margin-top:12px">Listo</button></section>`);
+  el.querySelector('.back').onclick=()=>{ if(regId){ get('registros',regId).then(rr=>rr?detalleSemana(rr):show('semana')); } else show('semana'); };
+  el.querySelector('#listo').onclick=()=>show('semana');
+  el.querySelector('#sem').oninput=e=>{ semLabel=e.target.value; marcarEstado('Escribiendo…'); };
+  el.querySelector('#sem').onblur=()=>guardar();
+  const marcarEstado=(t)=>{ const e=el.querySelector('#estado'); if(e) e.textContent=t||'Guardado ✓'; };
 
-  async function guardar(){ 
+  async function guardar(){
     const limpio={vacas:plan.vacas.filter(x=>x&&x.trim()),tareas:plan.tareas.filter(x=>x&&x.trim())};
-    if(regId){ const r=await get('registros',regId); if(r){ r.notas=JSON.stringify(limpio); r.cantidad=limpio.tareas.length; r.sync='pend'; r.modificado=Date.now(); await put('registros',r); } }
+    if(regId){ const rr=await get('registros',regId); if(rr){ rr.detalle=semLabel; rr.semana=semLabel; rr.notas=JSON.stringify(limpio); rr.cantidad=limpio.tareas.length; rr.sync='pend'; rr.modificado=Date.now(); await put('registros',rr); } }
     else { const reg={id:nuevoId(),fecha:hoyISO(),tipo:'Planificador',nombreDesc:'Plan de la semana',detalle:semLabel,cantidad:limpio.tareas.length,unidad:'tareas',precio:0,total:0,categoria:'Plan',notas:JSON.stringify(limpio),semana:semLabel,fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
-      await put('registros',reg); regId=reg.id; }
+      await put('registros',reg); regId=reg.id; planEdit=reg; }
     marcarEstado('Guardado ✓'); actualizarSync(); sincronizar(); }
 
-  function renderVacas(){ const c=wrap.querySelector('#vacas'); c.innerHTML=''; plan.vacas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="rm">✕</button></div>`);
-    const inp=row.querySelector('input'); inp.value=t; inp.oninput=e=>{ plan.vacas[i]=e.target.value; marcarEstado('Escribiendo…'); };
-    inp.onblur=()=>guardar(); row.querySelector('.rm').onclick=()=>{ plan.vacas.splice(i,1); renderVacas(); guardar(); }; c.appendChild(row); }); }
-  renderVacas(); wrap.querySelector('#addvaca').onclick=()=>{ plan.vacas.push(''); renderVacas(); };
+  function renderVacas(){ const c=el.querySelector('#vacas'); c.innerHTML=''; plan.vacas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="rm">✕</button></div>`);
+    const inp=row.querySelector('input'); inp.value=t; inp.oninput=e=>{ plan.vacas[i]=e.target.value; marcarEstado('Escribiendo…'); }; inp.onblur=()=>guardar();
+    row.querySelector('.rm').onclick=()=>{ plan.vacas.splice(i,1); renderVacas(); guardar(); }; c.appendChild(row); }); }
+  renderVacas(); el.querySelector('#addvaca').onclick=()=>{ plan.vacas.push(''); renderVacas(); };
 
-  function renderTareas(){ const c=wrap.querySelector('#tareas'); c.innerHTML=''; c.style.display=plan.tareas.length?'block':'none'; plan.tareas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="mv" data-up>↑</button><button type="button" class="mv" data-dn>↓</button><button type="button" class="rm">✕</button></div>`);
+  function renderTareas(){ const c=el.querySelector('#tareas'); c.innerHTML=''; c.style.display=plan.tareas.length?'block':'none'; plan.tareas.forEach((t,i)=>{ const row=h(`<div class="plan-item"><span class="n">${i+1}</span><input class="tx" value=""><button type="button" class="mv" data-up>↑</button><button type="button" class="mv" data-dn>↓</button><button type="button" class="rm">✕</button></div>`);
     const inp=row.querySelector('input'); inp.value=t; inp.oninput=e=>{ plan.tareas[i]=e.target.value; marcarEstado('Escribiendo…'); }; inp.onblur=()=>guardar();
     row.querySelector('[data-up]').onclick=()=>{ if(i>0){ [plan.tareas[i-1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i-1]]; renderTareas(); guardar(); } }; row.querySelector('[data-dn]').onclick=()=>{ if(i<plan.tareas.length-1){ [plan.tareas[i+1],plan.tareas[i]]=[plan.tareas[i],plan.tareas[i+1]]; renderTareas(); guardar(); } };
     row.querySelector('.rm').onclick=()=>{ plan.tareas.splice(i,1); renderTareas(); guardar(); }; c.appendChild(row); }); }
   renderTareas();
-  const agregar=()=>{ const inp=wrap.querySelector('#nueva'); const v=inp.value.trim(); if(!v) return; plan.tareas.push(v); inp.value=''; renderTareas(); guardar(); inp.focus(); };
-  wrap.querySelector('#addtarea').onclick=agregar;
-  wrap.querySelector('#nueva').onkeydown=e=>{ if(e.key==='Enter') agregar(); };
+  const agregar=()=>{ const inp=el.querySelector('#nueva'); const v=inp.value.trim(); if(!v) return; plan.tareas.push(v); inp.value=''; renderTareas(); guardar(); inp.focus(); };
+  el.querySelector('#addtarea').onclick=agregar;
+  el.querySelector('#nueva').onkeydown=e=>{ if(e.key==='Enter') agregar(); };
 
-  wrap.querySelector('#gen').onclick=async()=>{ await guardar(); wrap.querySelector('#gen').textContent='Generando…';
-    const blob=await generarPlanImagen({semana:plan.semana,vacas:plan.vacas.filter(x=>x&&x.trim()),tareas:plan.tareas.filter(x=>x&&x.trim())});
-    const prev=wrap.querySelector('#planprev'); prev.innerHTML=''; prev.style.display='block'; prev.appendChild(h(`<img alt="Tareas" src="${blobURL(blob)}">`));
-    const share=h(`<button class="save" style="margin-top:12px">${icon('share')} Compartir / Descargar</button>`); share.onclick=()=>compartir(blob,`Tareas_${plan.semana.replace(/\s+/g,'_')}.png`); prev.appendChild(share);
-    wrap.querySelector('#gen').innerHTML=icon('spark')+' Generar de nuevo'; try{ prev.scrollIntoView({behavior:'smooth',block:'nearest'}); }catch(e){} };
-  marcarEstado(regId?'Guardado ✓':'Nuevo');
-}
+  el.querySelector('#gen').onclick=async()=>{ await guardar(); el.querySelector('#gen').textContent='Generando…';
+    const blob=await generarPlanImagen({semana:semLabel,vacas:plan.vacas.filter(x=>x&&x.trim()),tareas:plan.tareas.filter(x=>x&&x.trim())});
+    const prev=el.querySelector('#planprev'); prev.innerHTML=''; prev.appendChild(h(`<img alt="Tareas" src="${blobURL(blob)}" style="margin-top:12px">`));
+    const share=h(`<button class="save" style="margin-top:12px">${icon('share')} Compartir / Descargar</button>`); share.onclick=()=>compartir(blob,`Tareas_${semLabel.replace(/\s+/g,'_')}.png`); prev.appendChild(share);
+    el.querySelector('#gen').innerHTML=icon('spark')+' Generar de nuevo'; };
+  // si es nueva, crear el registro de una vez para que exista (con vacas)
+  if(esNueva) guardar();
+  return el;
+};
+
 async function compartir(blob,filename){ try{ const file=new File([blob],filename,{type:'image/png'}); if(navigator.canShare&&navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:'Tareas Finca La Esperanza'}); return; } }catch(e){}
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; a.click(); toast('Imagen descargada'); }
 async function generarPlanImagen(plan){
@@ -1269,14 +1385,56 @@ screens.reportes = () => {
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Más</button></div><h1 class="ltitle">Reportes</h1>
     <button class="btn-outline" id="pdfmes">${icon('doc')} PDF del mes</button>
     <button class="btn-outline" id="pdfsem">${icon('doc')} PDF de esta semana</button>
+    <button class="btn-outline" id="pdfjor">${icon('farmer')} PDF de jornales (elegir fechas)</button>
     <button class="btn-outline" id="csv">${icon('chart')} Descargar tabla (Excel / CSV)</button>
     <button class="btn-outline" id="sheet">${icon('share')} Abrir Google Sheet</button>
     <p class="hint">El PDF arma el resumen con los datos y el logo. En el diálogo elige <b>Guardar como PDF</b>.</p></section>`);
   el.querySelector('.back').onclick=()=>show('mas');
   el.querySelector('#pdfmes').onclick=()=>imprimirReporte('mes'); el.querySelector('#pdfsem').onclick=()=>imprimirReporte('semana');
+  el.querySelector('#pdfjor').onclick=()=>pdfJornalesRango();
   el.querySelector('#csv').onclick=exportarCSV; el.querySelector('#sheet').onclick=()=>{ if(META.sheetUrl)window.open(META.sheetUrl,'_blank'); else toast('Configura el enlace en Ajustes'); };
   return el;
 };
+
+function pdfJornalesRango(){
+  const hoy=hoyISO(); const d=new Date(); d.setDate(d.getDate()-30);
+  const hace30=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const body=h(`<div>
+    <div class="field"><label>Desde</label><input type="date" id="desde" value="${hace30}"></div>
+    <div class="field"><label>Hasta</label><input type="date" id="hasta" value="${hoy}"></div>
+    <p class="hint">Se hace un PDF solo con los jornales (mano de obra) entre esas dos fechas, con el total a pagar.</p></div>`);
+  openModal('PDF de jornales',body,{okText:'Generar PDF',onOk:async close=>{
+    const desde=body.querySelector('#desde').value, hasta=body.querySelector('#hasta').value;
+    if(!desde||!hasta){ toast('Elige las dos fechas'); return; }
+    close(); await imprimirJornales(desde,hasta); }});
+}
+async function imprimirJornales(desde,hasta){
+  const d1=desde<hasta?desde:hasta, d2=desde<hasta?hasta:desde;
+  const jor=(await vivos('registros')).filter(r=>r.tipo==='Trabajador'&&r.fecha>=d1&&r.fecha<=d2).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if(!jor.length){ toast('No hay jornales en ese rango'); return; }
+  // agrupar por trabajador
+  const porTrab={}; let total=0, totalDias=0, totalPend=0;
+  jor.forEach(r=>{ (porTrab[r.nombreDesc]=porTrab[r.nombreDesc]||[]).push(r); total+=num(r.total); totalDias+=num(r.cantidad); if(r.pagado===false) totalPend+=num(r.total); });
+  let secciones='';
+  Object.keys(porTrab).sort().forEach(nom=>{ const lista=porTrab[nom]; let sub=0,subd=0;
+    let filas='';
+    lista.forEach(r=>{ sub+=num(r.total); subd+=num(r.cantidad); const estado=r.pagado===false?'<span style="color:#BB4D2C">Pendiente</span>':'<span style="color:#137A4F">Pagado</span>';
+      filas+=`<tr><td style="padding:5px 4px;border-bottom:1px solid #eee">${r.fecha}</td><td style="padding:5px 4px;border-bottom:1px solid #eee">${r.detalle||''}</td><td style="padding:5px 4px;border-bottom:1px solid #eee">${(r.notas||'').replace(/</g,'')||'—'}</td><td style="padding:5px 4px;border-bottom:1px solid #eee;text-align:center">${estado}</td><td style="padding:5px 4px;border-bottom:1px solid #eee;text-align:right;font-weight:600">${money(r.total)}</td></tr>`; });
+    secciones+=`<div style="margin-top:18px"><div style="display:flex;justify-content:space-between;align-items:center;background:#E4F1EA;border-radius:8px;padding:8px 12px;margin-bottom:6px"><span style="font-weight:800;color:#137A4F">${nom}</span><span style="font-weight:700">${subd} día(s) · ${money(sub)}</span></div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px"><tr style="color:#8A8A8F;font-size:11px"><th style="text-align:left;padding:2px 4px">Fecha</th><th style="text-align:left">Tipo</th><th style="text-align:left">Actividad</th><th style="text-align:center">Estado</th><th style="text-align:right">Pago</th></tr>${filas}</table></div>`; });
+  const fmt=iso=>{ const [y,m,dd]=iso.split('-'); return `${+dd}/${+m}/${y}`; };
+  $('#printarea').innerHTML=`<div style="font-family:-apple-system,Arial;color:#211A14;padding:24px;max-width:720px;margin:0 auto">
+    <div style="display:flex;align-items:center;gap:16px;border-bottom:3px solid #B8871C;padding-bottom:14px;margin-bottom:8px"><img src="logo.jpg" style="width:82px;height:82px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'"><div><div style="font-size:24px;font-weight:800;color:#137A4F;line-height:1.1">REPORTE DE JORNALES</div><div style="font-size:16px;font-weight:700">FINCA LA ESPERANZA</div><div style="color:#8A8A8F">Del ${fmt(d1)} al ${fmt(d2)}</div></div></div>
+    <div style="display:flex;gap:10px;margin:14px 0">
+      <div style="flex:1;background:#F2F2F6;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#8A8A8F;font-weight:600">DÍAS TRABAJADOS</div><div style="font-size:22px;font-weight:800">${totalDias}</div></div>
+      <div style="flex:1;background:#F2F2F6;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#8A8A8F;font-weight:600">TOTAL A PAGAR</div><div style="font-size:22px;font-weight:800;color:#137A4F">${money(total)}</div></div>
+      ${totalPend>0?`<div style="flex:1;background:#FBE6E2;border-radius:10px;padding:10px 14px"><div style="font-size:11px;color:#BB4D2C;font-weight:600">PENDIENTE</div><div style="font-size:22px;font-weight:800;color:#BB4D2C">${money(totalPend)}</div></div>`:''}
+    </div>
+    ${secciones}
+    <div style="margin-top:26px;color:#8A8A8F;font-size:12px;text-align:center">Finca La Esperanza · generado ${fmt(hoyISO())}</div></div>`;
+  setTimeout(()=>window.print(),120);
+}
+
 async function imprimirReporte(per){
   const regs=(await vivos('registros')).filter(r=>r.categoria==='Ingreso'||r.categoria==='Egreso'); const prod=await vivos('produccion'); const leche=await vivos('leche'); const hoy=hoyISO();
   const enP=r=> per==='mes'?ymDe(r.fecha)===ymActual():mismaSemana(r.fecha,hoy);
