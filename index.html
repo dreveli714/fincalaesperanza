@@ -620,43 +620,70 @@ screens.gasto = () => {
 };
 
 screens.trabajador = () => {
-  const st={nombre:META.trabajadores[0],pago:META.formasPago[0],dias:new Set(),actividades:{},pagado:true};
+  // st.dias: Set de fechas · st.detalle[fecha] = {actividad, pagoN, pagoP}
+  const pago0=META.formasPago[0];
+  const st={nombre:META.trabajadores[0],dias:new Set(),detalle:{},pagado:true,ultimoPago:{n:pago0.n,p:pago0.p,editable:!!pago0.editable}};
   const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Finanzas</button></div>
     <h1 class="ltitle">Trabajador</h1>
     <button class="btn-outline" id="verhist" style="margin-bottom:4px">${icon('doc')} Ver jornales registrados</button>
     <div class="field"><label>Trabajador</label><div id="who"></div></div>
-    <div class="field"><label>Forma de pago</label><div id="pago"></div></div>
-    <div class="field"><label>Días trabajados <span class="soft">· marca los que trabajó</span></label><div id="cal"></div><div id="calcount" style="margin:12px 4px 2px;font-size:.9rem;color:var(--secondary);text-align:center">Ningún día marcado</div>
-      <div id="actividades" style="margin-top:12px"></div></div>
+    <div class="field"><label>Días trabajados <span class="soft">· marca en el calendario</span></label><div id="cal"></div><div id="calcount" style="margin:12px 4px 2px;font-size:.9rem;color:var(--secondary);text-align:center">Ningún día marcado</div></div>
+    <div id="dias"></div>
     <div class="field"><label>Estado</label><div id="estado"></div></div>
     <div class="total-box"><span class="lbl">Pago total</span><span class="val" id="total">$0.00</span></div>
     <button class="save" id="save">Guardar</button></section>`);
   el.querySelector('.back').onclick=()=>show('finanzas');
   el.querySelector('#verhist').onclick=()=>show('movimientos','trabajador');
-  const paint=()=>{ el.querySelector('#total').textContent=money((st.pago.p||0)*st.dias.size); el.querySelector('#calcount').innerHTML=st.dias.size?`<b>${st.dias.size}</b> día(s) marcado(s)`:'Ningún día marcado'; refreshActividades(); };
-  function refreshActividades(){ const c=el.querySelector('#actividades'); if(!c) return; c.innerHTML='';
+
+  const pagoLabel=pp=>pp.editable?`${pp.n} ($${pp.p})`:`${pp.n} ($${pp.p})`;
+  function paint(){ let tot=0; st.dias.forEach(k=>{ const d=st.detalle[k]; if(d) tot+=num(d.pagoP); });
+    el.querySelector('#total').textContent=money(tot);
+    el.querySelector('#calcount').innerHTML=st.dias.size?`<b>${st.dias.size}</b> día(s) marcado(s)`:'Ningún día marcado';
+    refreshDias(); }
+
+  function refreshDias(){ const c=el.querySelector('#dias'); if(!c) return; c.innerHTML='';
+    // limpiar días desmarcados
+    Object.keys(st.detalle).forEach(k=>{ if(!st.dias.has(k)) delete st.detalle[k]; });
     const dias=[...st.dias].sort(); if(!dias.length) return;
-    // limpiar actividades de días desmarcados
-    Object.keys(st.actividades).forEach(k=>{ if(!st.dias.has(k)) delete st.actividades[k]; });
-    c.appendChild(h(`<div style="font-size:.8rem;font-weight:600;color:var(--secondary);margin:6px 4px 8px">Actividad de cada día <span style="font-weight:400">· opcional</span></div>`));
-    const g=h('<div class="lgroup"></div>');
-    dias.forEach(k=>{ const [,m,d]=k.split('-'); const row=h(`<div class="grow"><span class="gtx" style="flex:0 0 auto;min-width:52px"><b>${+d}/${+m}</b></span><input type="text" class="tx" style="flex:1;border:none;background:none;box-shadow:none;min-height:auto;font-size:1rem;padding:2px 0" placeholder="¿Qué hizo?"></div>`);
-      const inp=row.querySelector('input'); inp.value=st.actividades[k]||''; inp.oninput=e=>st.actividades[k]=e.target.value; g.appendChild(row); });
-    c.appendChild(g); }
+    c.appendChild(h(`<div class="ghead" style="margin:4px 0 8px 4px">Cada día: actividad y pago</div>`));
+    dias.forEach(k=>{ const [,m,d]=k.split('-'); const det=st.detalle[k];
+      const card=h(`<div class="card" style="padding:12px 14px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span class="badge-s b-green" style="font-size:.82rem">${+d}/${+m}</span><input type="text" class="act" placeholder="¿Qué hizo? (actividad)" style="flex:1;min-height:40px;font-size:1rem"></div>
+        <select class="selpago" style="min-height:44px"></select>
+        <div class="extrawrap" style="display:none;margin-top:8px"><input type="text" class="extramonto" inputmode="decimal" placeholder="Monto de este día" style="min-height:44px"></div>
+      </div>`);
+      const act=card.querySelector('.act'); act.value=det.actividad||''; act.oninput=e=>{ det.actividad=e.target.value; };
+      const sel=card.querySelector('.selpago');
+      META.formasPago.forEach((pp,idx)=>{ const o=document.createElement('option'); o.value=idx; o.textContent=pp.editable?pp.n:`${pp.n} ($${pp.p})`; if(pp.n===det.pagoN) o.selected=true; sel.appendChild(o); });
+      const extraWrap=card.querySelector('.extrawrap'), extraInp=card.querySelector('.extramonto');
+      function aplicarSel(){ const pp=META.formasPago[+sel.value]; det.pagoN=pp.n; det.editable=!!pp.editable;
+        if(pp.editable){ extraWrap.style.display='block'; if(!det._extraSet){ extraInp.value=det.pagoP||''; } det.pagoP=num(extraInp.value); }
+        else { extraWrap.style.display='none'; det.pagoP=pp.p; }
+        st.ultimoPago={n:det.pagoN,p:det.pagoP,editable:det.editable}; paint(); }
+      sel.onchange=aplicarSel;
+      extraInp.oninput=e=>{ det._extraSet=true; det.pagoP=num(e.target.value); let tot=0; st.dias.forEach(kk=>{ const dd=st.detalle[kk]; if(dd)tot+=num(dd.pagoP); }); el.querySelector('#total').textContent=money(tot); };
+      if(det.editable){ extraWrap.style.display='block'; extraInp.value=det.pagoP||''; }
+      c.appendChild(card); });
+  }
+
   function refreshWho(){ const c=el.querySelector('#who'); c.innerHTML=''; c.appendChild(chipGroup(META.trabajadores,st.nombre,v=>st.nombre=v,{onAdd:v=>{ if(!META.trabajadores.includes(v)){META.trabajadores.push(v);saveMeta();} st.nombre=v; refreshWho(); }})); }
   refreshWho();
-  el.querySelector('#pago').appendChild(chipGroup(META.formasPago.map(p=>p.editable?p.n:`${p.n} ($${p.p})`),st.pago.editable?st.pago.n:`${st.pago.n} ($${st.pago.p})`,label=>{ st.pago=META.formasPago.find(p=>(p.editable?p.n:`${p.n} ($${p.p})`)===label); mostrarMontoExtra(); paint(); },{gold:true}));
-  const extraBox=h(`<div class="field" id="extrabox" style="display:none"><label>Monto por día (tú lo pones)</label><input type="text" id="extramonto" inputmode="decimal" placeholder="0,00"></div>`);
-  el.querySelector('#pago').after(extraBox);
-  el.querySelector('#extramonto').oninput=e=>{ st.pago.p=num(e.target.value); paint(); };
-  function mostrarMontoExtra(){ const box=el.querySelector('#extrabox'); if(st.pago.editable){ box.style.display='block'; el.querySelector('#extramonto').value=st.pago.p||''; } else box.style.display='none'; }
   el.querySelector('#estado').appendChild(chipGroup(['Pagado','Pendiente'],'Pagado',v=>st.pagado=(v==='Pagado')));
-  calendarPicker(el.querySelector('#cal'), st.dias, paint); paint();
+
+  // al marcar un día nuevo, hereda el último pago usado
+  const onCalChange=()=>{ st.dias.forEach(k=>{ if(!st.detalle[k]) st.detalle[k]={actividad:'',pagoN:st.ultimoPago.n,pagoP:st.ultimoPago.p,editable:st.ultimoPago.editable}; }); paint(); };
+  calendarPicker(el.querySelector('#cal'), st.dias, onCalChange); onCalChange();
+
   el.querySelector('#save').onclick=async()=>{ if(st.dias.size===0){ toast('Marca al menos un día'); return; }
-    const dias=[...st.dias].sort(); const first=dias[0];
-    const notasDias=dias.map(k=>{ const a=(st.actividades[k]||'').trim(); const [,m,d]=k.split('-'); return a?`${+d}/${+m}: ${a}`:`${+d}/${+m}`; }).join(' · ');
-    const reg={id:nuevoId(),fecha:first,tipo:'Trabajador',nombreDesc:st.nombre,detalle:`${st.pago.n} · ${dias.length} día(s)`+(st.pagado?'':' · PENDIENTE'),cantidad:dias.length,unidad:'días',precio:st.pago.p,total:st.pago.p*dias.length,categoria:'Egreso',pagado:st.pagado,comprador:'',notas:notasDias,diasJson:JSON.stringify(st.actividades),semana:semanaDe(first),fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
-    await put('registros',reg); doneToast(`Guardado: ${st.nombre} · ${dias.length} día(s)`,'registros',reg); };
+    const dias=[...st.dias].sort();
+    // un registro POR día
+    let ultimo=null;
+    for(const k of dias){ const det=st.detalle[k];
+      const reg={id:nuevoId(),fecha:k,tipo:'Trabajador',nombreDesc:st.nombre,detalle:det.pagoN+(det.actividad?' · '+det.actividad:''),cantidad:1,unidad:'día',precio:num(det.pagoP),total:num(det.pagoP),categoria:'Egreso',pagado:st.pagado,pagoTipo:det.pagoN,actividad:det.actividad||'',comprador:'',notas:det.actividad||'',semana:semanaDe(k),fotoId:null,comprobanteUrl:'',sync:'pend',modificado:Date.now(),creado:Date.now()};
+      await put('registros',reg); ultimo=reg; }
+    let tot=0; dias.forEach(k=>tot+=num(st.detalle[k].pagoP));
+    toast(`Guardado: ${st.nombre} · ${dias.length} día(s) · ${money(tot)}`);
+    show('finanzas'); actualizarSync(); sincronizar(); };
   return el;
 };
 
@@ -820,9 +847,11 @@ async function abrirRegistro(r){
       <div class="line"><span class="k">Tipo</span><span class="v">${r.tipo}</span></div>
       <div class="line"><span class="k">Descripción</span><span class="v">${r.nombreDesc}</span></div>
       <div class="line"><span class="k">Detalle</span><span class="v">${r.detalle}</span></div>
+      ${r.tipo==='Trabajador'&&(r.actividad||r.notas)?`<div class="line"><span class="k">Actividad</span><span class="v">${r.actividad||r.notas}</span></div>`:''}
       <div class="line"><span class="k">Fecha</span><span class="v">${r.fecha}</span></div>
       <div class="line"><span class="k">Total</span><span class="v">${money(r.total)}</span></div>
-      <div class="line"><span class="k">Estado</span><span class="v">${r.sync==='ok'?'<span class="pill-ok">Sincronizado</span>':'Pendiente'}</span></div>
+      ${r.tipo==='Trabajador'?`<div class="line"><span class="k">Pago</span><span class="v">${r.pagado===false?'<span style="color:var(--rust)">Pendiente</span>':'<span class="pill-ok">Pagado</span>'}</span></div>`:''}
+      <div class="line"><span class="k">Sincronización</span><span class="v">${r.sync==='ok'?'<span class="pill-ok">Sincronizado</span>':'Pendiente'}</span></div>
     </div><div id="fotozone"></div>
     <button class="btn-outline" id="editcant">${icon('edit')} Editar este registro</button>
     <button class="danger-link" id="delete">Eliminar registro</button></section>`);
@@ -882,19 +911,29 @@ function editarRegistro(r){
       r.detalle=`${c} ${r.unidad||''}`; r.comprador=''; r.sync='pend'; r.modificado=Date.now();
       await put('registros',r); toast('Venta corregida'); actualizarSync(); sincronizar(); close(); abrirRegistro(r); }});
   } else {
+    const varios = num(r.cantidad)>1;  // registro viejo con varios días
+    const actual = r.actividad || (varios?'':(r.notas||''));
     body=h(`<div>
       <div class="field"><label>Trabajador</label><input type="text" id="enom"></div>
+      <div class="field"><label>Actividad de ese día</label><input type="text" id="eact" placeholder="¿Qué hizo?"></div>
       <div class="field"><label>Fecha</label><input type="date" id="efec" value="${r.fecha}"></div>
-      <div class="row2"><div class="field"><label>Días</label><input type="text" id="ec" inputmode="decimal"></div>
+      <div class="row2"><div class="field"><label>${varios?'Días':'Días'}</label><input type="text" id="ec" inputmode="decimal"></div>
         <div class="field"><label>Pago por día</label><input type="text" id="ep" inputmode="decimal"></div></div>
+      <div class="field"><label>Estado</label><div id="eest"></div></div>
       <div class="total-box"><span class="lbl">Total</span><span class="val" id="etot">${money(r.total)}</span></div></div>`);
-    body.querySelector('#enom').value=r.nombreDesc||''; body.querySelector('#ec').value=r.cantidad; body.querySelector('#ep').value=r.precio;
+    body.querySelector('#enom').value=r.nombreDesc||''; body.querySelector('#eact').value=actual; body.querySelector('#ec').value=r.cantidad||1; body.querySelector('#ep').value=r.precio;
+    let pagadoSel = r.pagado!==false;
+    body.querySelector('#eest').appendChild(chipGroup(['Pagado','Pendiente'], pagadoSel?'Pagado':'Pendiente', v=>pagadoSel=(v==='Pagado')));
     const rep=()=>{ body.querySelector('#etot').textContent=money(num(body.querySelector('#ec').value)*num(body.querySelector('#ep').value)); };
     body.querySelector('#ec').oninput=rep; body.querySelector('#ep').oninput=rep;
     openModal('Editar jornal',body,{onOk:async close=>{
       const c=num(body.querySelector('#ec').value); if(c<=0){ toast('Faltan los días'); return; }
       r.nombreDesc=body.querySelector('#enom').value.trim()||r.nombreDesc; r.fecha=body.querySelector('#efec').value; r.semana=semanaDe(r.fecha);
-      r.cantidad=c; r.precio=num(body.querySelector('#ep').value); r.total=r.cantidad*r.precio; r.sync='pend'; r.modificado=Date.now();
+      r.actividad=body.querySelector('#eact').value.trim(); r.notas=r.actividad;
+      r.cantidad=c; r.precio=num(body.querySelector('#ep').value); r.total=r.cantidad*r.precio; r.pagado=pagadoSel;
+      // detalle legible: tipo de pago (si existe) + actividad
+      const tipo=r.pagoTipo||''; r.detalle=(tipo?tipo:(r.detalle||'').split(' · ')[0])+(r.actividad?' · '+r.actividad:'')+(r.pagado?'':' · PENDIENTE');
+      r.sync='pend'; r.modificado=Date.now();
       await put('registros',r); toast('Jornal corregido'); actualizarSync(); sincronizar(); close(); abrirRegistro(r); }});
   }
 }
