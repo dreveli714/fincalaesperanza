@@ -834,6 +834,21 @@ screens.movimientos = (filtro) => {
     if(F==='gastos') regs=regs.filter(r=>r.categoria==='Egreso'&&r.tipo!=='Trabajador');
     else if(F==='ventas') regs=regs.filter(r=>r.categoria==='Ingreso');
     else if(F==='trabajador') regs=regs.filter(r=>r.tipo==='Trabajador');
+    if(F==='semjor'){
+      const jors=todos.filter(r=>r.tipo==='Trabajador').sort((a,b)=>b.fecha.localeCompare(a.fecha));
+      const lista=el.querySelector('#lista');
+      const bySem={};
+      jors.forEach(r=>{ const sem=r.semana||semanaDe(r.fecha); if(!bySem[sem]) bySem[sem]={sem,regs:[],total:0}; bySem[sem].regs.push(r); bySem[sem].total+=num(r.total); });
+      const sems=Object.values(bySem).sort((a,b)=>b.regs[0].fecha.localeCompare(a.regs[0].fecha));
+      if(!sems.length){ lista.appendChild(h(`<div class="empty">${icon('doc')}<div>No hay jornales.</div></div>`)); return; }
+      lista.appendChild(h(`<div class="line" style="padding:4px 4px 10px"><span class="k" style="color:var(--secondary);font-size:.86rem">${sems.length} semana(s)</span></div>`));
+      const g=h('<div class="lgroup"></div>');
+      sems.forEach(({sem,regs:sr,total})=>{
+        const byPers={};
+        sr.forEach(r=>{ if(!byPers[r.nombreDesc]) byPers[r.nombreDesc]={n:r.nombreDesc,dias:0,total:0}; byPers[r.nombreDesc].dias+=num(r.cantidad)||1; byPers[r.nombreDesc].total+=num(r.total); });
+        const card=h(`<button class="grow tap" style="flex-direction:column;align-items:stretch;padding:14px 16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>${sem}</b><span class="neg" style="font-weight:700">−${money(total)}</span></div><div style="display:flex;flex-wrap:wrap;gap:6px">${Object.values(byPers).map(p=>`<span class="badge-s b-slate" style="font-size:.78rem">${p.n} · ${p.dias} día(s) · ${money(p.total)}</span>`).join('')}</div></button>`);
+        card.onclick=()=>verSemanaJornales(sem,sr); g.appendChild(card); });
+      lista.appendChild(g); return; }
     regs=regs.sort((a,b)=>b.fecha.localeCompare(a.fecha)||b.creado-a.creado).slice(0,120);
     const lista=el.querySelector('#lista');
     const totF=regs.reduce((t,r)=>t+num(r.total),0);
@@ -850,6 +865,27 @@ screens.movimientos = (filtro) => {
     lista.appendChild(h(`<p class="hint">💵 = caja chica · 📎 = comprobante · Toca un registro para editar o borrar</p>`)); })();
   return el;
 };
+
+function verSemanaJornales(sem,regs){
+  const byPers={};
+  regs.forEach(r=>{ if(!byPers[r.nombreDesc]) byPers[r.nombreDesc]={n:r.nombreDesc,dias:[],total:0}; byPers[r.nombreDesc].dias.push(r); byPers[r.nombreDesc].total+=num(r.total); });
+  const total=regs.reduce((s,r)=>s+num(r.total),0);
+  const el=h(`<section class="screen"><div class="backrow"><button class="back">${icon('back')} Jornales</button></div>
+    <h1 class="ltitle">${sem}</h1>
+    <div class="total-box" style="margin-bottom:16px"><span class="lbl">Total semana</span><span class="val neg">−${money(total)}</span></div>
+    <div id="cont"></div></section>`);
+  el.querySelector('.back').onclick=()=>show('movimientos','semjor');
+  const cont=el.querySelector('#cont');
+  Object.values(byPers).forEach(({n,dias,total:tot})=>{
+    const card=h(`<div class="card" style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;margin-bottom:10px"><b style="font-size:1.05rem">${n}</b><span class="neg" style="font-weight:700">−${money(tot)}</span></div><div class="lgroup" id="dg"></div><div class="line" style="border:none;padding-top:8px"><span class="k">Días trabajados</span><span class="v">${dias.length}</span></div></div>`);
+    const g=card.querySelector('#dg');
+    dias.sort((a,b)=>a.fecha.localeCompare(b.fecha)).forEach(r=>{
+      const [,m,d]=r.fecha.split('-'); const act=r.actividad||r.notas||'';
+      const row=h(`<button class="grow tap"><span class="gtx"><b>${+d}/${+m} · ${r.pagoTipo||r.detalle||''}</b>${act?`<small>${act}</small>`:''}</span><span class="neg" style="font-weight:600">−${money(r.total)}</span></button>`);
+      row.onclick=()=>abrirRegistro(r); g.appendChild(row); });
+    cont.appendChild(card); });
+  currentScreen='movimientos'; view.innerHTML=''; view.appendChild(el); highlightTab(); try{window.scrollTo(0,0);}catch(e){}
+}
 function fechaCorta(iso){ const d=parseFecha(iso); const hoy=parseFecha(hoyISO()); const dif=Math.round((hoy-d)/86400000);
   if(dif===0) return 'Hoy'; if(dif===1) return 'Ayer';
   return `${DIAS[d.getDay()]} ${d.getDate()} ${MESES_AB[d.getMonth()]}`; }
@@ -1201,7 +1237,7 @@ screens.analisis = () => {
   if(anaPeriodo==='anio'){ const n=h(`<div class="navsel"><button data-prev>‹</button><b>${anaAnio}</b><button data-next>›</button></div>`);
     n.querySelector('[data-prev]').onclick=()=>{ anaAnio--; show('analisis'); }; n.querySelector('[data-next]').onclick=()=>{ anaAnio++; show('analisis'); }; nav.appendChild(n); }
   (async()=>{ const cont=el.querySelector('#cont'); const regs=await vivos('registros'); const prod=await vivos('produccion'); const leche=await vivos('leche'); const hoy=hoyISO();
-    const enP=r=> anaPeriodo==='dia'?r.fecha===hoy : anaPeriodo==='semana'?mismaSemana(r.fecha,hoy) : anaPeriodo==='mes'?ymDe(r.fecha)===anaMes : String(parseFecha(r.fecha).getFullYear())===String(anaAnio);
+    const enP=r=>{ if(!r.fecha) return false; if(anaPeriodo==='dia') return r.fecha===hoy; if(anaPeriodo==='semana') return mismaSemana(r.fecha,hoy); if(anaPeriodo==='mes') return ymDe(r.fecha)===anaMes; return r.fecha.startsWith(String(anaAnio)); };
     const filt=regs.filter(r=>(r.categoria==='Ingreso'||r.categoria==='Egreso')&&enP(r));
     if(!filt.length&&!prod.filter(enP).length&&!leche.filter(enP).length){ cont.appendChild(h(`<div class="empty">${icon('chart')}<div>Sin registros en este periodo.</div></div>`)); return; }
     const ing={},egr={}; let mano=0,tI=0,tE=0;
