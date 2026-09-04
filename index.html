@@ -470,6 +470,10 @@ screens.home = () => {
     const mesReg=regs.filter(r=>ymDe(r.fecha)===ym);
     let ingr=0,gast=0,jornales=0;
     mesReg.forEach(r=>{ if(r.categoria==='Ingreso')ingr+=r.total; else if(r.categoria==='Egreso'){gast+=r.total; if(r.tipo==='Trabajador')jornales+=r.cantidad;} });
+    // total histórico
+    let ingrTotal=0,gastTotal=0;
+    regs.forEach(r=>{ if(r.categoria==='Ingreso')ingrTotal+=r.total; else if(r.categoria==='Egreso')gastTotal+=r.total; });
+    const ganTotal=ingrTotal-gastTotal;
     const lecheMes=leche.filter(r=>ymDe(r.fecha)===ym).reduce((s,r)=>s+num(r.litros),0);
     const cacaoVend=mesReg.filter(r=>r.categoria==='Ingreso'&&r.nombreDesc.toLowerCase().includes('cacao')).reduce((s,r)=>s+num(r.cantidad),0);
     const vacas=animales.filter(a=>a.activo!==false&&a.sexo==='Hembra').length;
@@ -481,7 +485,13 @@ screens.home = () => {
     if(parto.length) alertas+=`<div class="alert">${icon('cow')}<div>${parto.length} vaca(s) próxima(s) a parir (15 días).</div></div>`;
     if(salCaja<=0){ const hayMov=(await all('caja')).length; if(hayMov) alertas+=`<div class="alert${salCaja<0?' dgr':''}">${icon('coin')}<div>Caja chica ${salCaja<0?'en negativo ('+money(salCaja)+')':'sin saldo'}. Toca Finanzas › Caja chica para recargar.</div></div>`; }
     dash.innerHTML=`
-      <div class="ghead" style="margin-top:0">${ymLabel(ym)}</div>
+      <div class="hero-neta ${ganTotal>=0?'':'rojo'} tap" data-kpi="ganancia" style="cursor:pointer">
+        <div class="hl">BALANCE TOTAL HISTÓRICO</div>
+        <div class="hv">${money(ganTotal)}</div>
+        <div class="hbar"><i style="flex:${ingrTotal};background:rgba(255,255,255,.7)"></i><i style="flex:${gastTotal};background:rgba(0,0,0,.25)"></i></div>
+        <div class="hleg"><span><b>${money(ingrTotal)}</b> ingresos</span><span>gastos <b>${money(gastTotal)}</b></span></div>
+      </div>
+      <div class="ghead" style="margin-top:4px">${ymLabel(ym)}</div>
       <div class="kpi-grid">
         <div class="kpi wide tap" data-kpi="ganancia"><div><div class="kl">Ganancia del mes</div><div class="kv ${gan>=0?'pos':'neg'}">${money(gan)}</div></div>${tile('coin','var(--accent)')}</div>
         <div class="kpi tap" data-kpi="ingresos"><div class="kl">Ingresos</div><div class="kv pos">${money(ingr)}</div></div>
@@ -1604,12 +1614,14 @@ screens.config = () => {
   el.querySelector('#diag').onclick=()=>diagnostico(el.querySelector('#diagres'));
   el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Bajando…';
     META.ultimaBajada=0; META.ultimaSubida=0; bajadaCompletaHecha=false; await saveMeta();
-    // limpiar TODOS los stores locales (incluyendo borrados) antes de bajar
-    for(const st of SYNCST){
-      const todos=await new Promise((res,rej)=>{ const r=txs(st,'readonly').getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>res([]); });
-      for(const r of todos) await del(st,r.id);
-    }
-    bajadaCompletaHecha=false; // forzar bajada completa sin cursor
+    // limpiar stores y forzar bajada completa
+    try{
+      for(const st of SYNCST){
+        if(useMem){ M(st).clear(); }
+        else { await new Promise((res)=>{ const r=txs(st,'readwrite').clear(); r.onsuccess=res; r.onerror=res; }); }
+      }
+    }catch(e){}
+    META.ultimaBajada=0; bajadaCompletaHecha=false;
     const n=await bajar();
     if(n>0) toast(`✓ Bajados ${n} registros`);
     else if(n===0) toast('El Sheet tiene datos pero ya los tenías todos');
