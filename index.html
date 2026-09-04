@@ -1604,8 +1604,12 @@ screens.config = () => {
   el.querySelector('#diag').onclick=()=>diagnostico(el.querySelector('#diagres'));
   el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Bajando…';
     META.ultimaBajada=0; META.ultimaSubida=0; bajadaCompletaHecha=false; await saveMeta();
-    // limpiar todos los stores locales antes de bajar
-    for(const st of SYNCST){ const todos=await all(st); for(const r of todos) await del(st,r.id); }
+    // limpiar TODOS los stores locales (incluyendo borrados) antes de bajar
+    for(const st of SYNCST){
+      const todos=await new Promise((res,rej)=>{ const r=txs(st,'readonly').getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>res([]); });
+      for(const r of todos) await del(st,r.id);
+    }
+    bajadaCompletaHecha=false; // forzar bajada completa sin cursor
     const n=await bajar();
     if(n>0) toast(`✓ Bajados ${n} registros`);
     else if(n===0) toast('El Sheet tiene datos pero ya los tenías todos');
