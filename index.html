@@ -427,8 +427,11 @@ async function bajar(){
     }
     bajadaCompletaHecha=true;
     if(data.servidor){ META.ultimaBajada=data.servidor; await saveMeta(); }
+    // log de diagnóstico
+    let totalRemoto=0; for(const st of SYNCST) totalRemoto+=(data.datos[st]||[]).length;
+    console.log('[BAJADA] remoto total:',totalRemoto,'guardados:',n,'desde:',desde);
     return n;
-  }catch(e){ ultimoErrorBajada='No se pudo conectar con Google.'; return -1; } }
+  }catch(e){ ultimoErrorBajada='No se pudo conectar con Google. '+e.message; return -1; } }
 
 function limpiar(r){ const {fotoId,...rest}=r; return rest; }
 function refrescarVista(){ try{ const vistas=['home','animales','analisis','caja','movimientos','inventario']; if(vistas.includes(currentScreen)) show(currentScreen); }catch(e){} }
@@ -1603,7 +1606,11 @@ screens.config = () => {
     META.ultimaBajada=0; META.ultimaSubida=0; bajadaCompletaHecha=false; await saveMeta();
     // limpiar todos los stores locales antes de bajar
     for(const st of SYNCST){ const todos=await all(st); for(const r of todos) await del(st,r.id); }
-    const n=await bajar(); toast(n>0?`Bajados ${n} registros`:'Sin datos en Google todavía'); show('config'); };
+    const n=await bajar();
+    if(n>0) toast(`✓ Bajados ${n} registros`);
+    else if(n===0) toast('El Sheet tiene datos pero ya los tenías todos');
+    else toast('Error: '+ultimoErrorBajada);
+    show('config'); };
   return el;
 };
 
