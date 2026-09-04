@@ -1600,7 +1600,7 @@ screens.config = () => {
   el.querySelector('#probar').onclick=()=>sincronizar(true);
   el.querySelector('#diag').onclick=()=>diagnostico(el.querySelector('#diagres'));
   el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Bajando…';
-    META.ultimaBajada=0; bajadaCompletaHecha=false; await saveMeta(); await sincronizar(true); show('config'); };
+    META.ultimaBajada=0; bajadaCompletaHecha=false; await saveMeta(); const n=await bajar(); toast(n>0?`Bajados ${n} registros`:'Sin registros nuevos'); show('config'); };
   return el;
 };
 
