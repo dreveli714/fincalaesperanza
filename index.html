@@ -429,7 +429,7 @@ async function bajar(){
     if(data.servidor){ META.ultimaBajada=data.servidor; await saveMeta(); }
     // log de diagnóstico
     let totalRemoto=0; for(const st of SYNCST) totalRemoto+=(data.datos[st]||[]).length;
-    console.log('[BAJADA] remoto total:',totalRemoto,'guardados:',n,'desde:',desde);
+    console.log('[BAJADA] remoto total:',totalRemoto,'guardados:',n,'cursor:',usarCursor);
     return n;
   }catch(e){ ultimoErrorBajada='No se pudo conectar con Google. '+e.message; return -1; } }
 
