@@ -286,7 +286,7 @@ const DEFAULTS={
 let META=null;
 const STORES=['registros','produccion','animales','leche','salud','inventario','caja','galeria','fotos','meta'];
 
-let db=null, mem={}, useMem=false;
+let db=null, mem={}, useMem=true;  // SOLO NUBE: sin copia local en disco
 function M(s){ return mem[s]||(mem[s]=new Map()); }
 function openDB(){ return new Promise((res)=>{ let done=false; const finish=()=>{ if(!done){done=true;res();} };
   const t=setTimeout(()=>{ useMem=true; finish(); },1500);
@@ -363,9 +363,9 @@ async function borrarReg(store,id){ const r=await get(store,id);
   await put(store,r);
   actualizarSync(); sincronizar(); }
 async function actualizarSync(){ const bar=$('#statusline'),txt=$('#statustext'); const p=await pendientes(); bar.className='statusline';
-  if(!online()){ bar.classList.add('off'); txt.textContent=p.length?`Sin señal · ${p.length} por subir`:'Sin señal'; return; }
+  if(!online()){ bar.classList.add('off'); txt.textContent=p.length?`⚠️ SIN SUBIR: ${p.length} · conéctate a internet`:'Sin señal — conéctate para ver tus datos'; return; }
   if(ultimoErrorBajada){ bar.classList.add('off'); txt.textContent='⚠️ No recibe datos · toca aquí'; return; }
-  if(p.length){ bar.classList.add('pend'); txt.textContent=META.appsUrl?`${p.length} por subir`:`${p.length} guardados en el teléfono`; } else txt.textContent='Todo sincronizado'; }
+  if(p.length){ bar.classList.add('pend'); txt.textContent=`⚠️ SIN SUBIR: ${p.length} · toca para subir`; } else txt.textContent='✓ Todo guardado en Google'; }
 let sincronizando=false, bajadaCompletaHecha=false;
 async function sincronizar(manual){ if(!META.appsUrl||!online()||sincronizando){ actualizarSync(); return; }
   sincronizando=true;
@@ -1635,33 +1635,29 @@ screens.config = () => {
     <button class="save" id="guardar">Guardar ajustes</button>
     <button class="btn-outline" id="probar" style="margin-top:12px">${icon('share')} Sincronizar ahora</button>
     <button class="btn-outline" id="diag">${icon('gear')} Probar conexión (diagnóstico)</button>
-    <button class="btn-outline" id="rebajar">${icon('save')} Volver a bajar todo de Google</button>
+    <button class="btn-outline" id="rebajar">${icon('save')} Recargar datos de Google</button>
     <div id="diagres"></div>
-    <p class="hint">La app se sincroniza sola al abrirla y cada 2 minutos. También puedes tocar la barra verde de arriba.</p>
+    <p class="hint">Modo nube: la app siempre lee y guarda directo en Google. No guarda copia en el teléfono, así todos ven lo mismo y nada se pierde. Necesitas internet para abrir y para guardar.</p>
     <div class="ghead">Varios teléfonos</div>
-    <p class="hint" style="margin-top:2px">Para usar la app en otro teléfono: abre el mismo enlace ahí, revisa que tenga esta misma URL y token, y toca "Sincronizar ahora". Bajará todo lo registrado.</p>
+    <p class="hint" style="margin-top:2px">Todos los teléfonos con esta misma URL y token ven lo mismo automáticamente. Al abrir, cada uno baja todo lo del Sheet.</p>
     <div class="ghead">Estado</div>
-    <div class="lgroup"><div class="grow"><span class="gtx"><b>Guardado local</b></span><span class="gval">${useMem?'⚠️ solo memoria*':'✓ activo'}</span></div><div class="grow"><span class="gtx"><b>Registros</b></span><span class="gval" id="ncount">…</span></div></div>
-    <p class="hint" ${useMem?'':'style="display:none"'}>*Esta vista previa no guarda permanente; en tu teléfono / GitHub Pages sí.</p></section>`);
+    <div class="lgroup"><div class="grow"><span class="gtx"><b>Modo</b></span><span class="gval">☁️ Solo nube</span></div><div class="grow"><span class="gtx"><b>Registros ahora</b></span><span class="gval" id="ncount">…</span></div><div class="grow"><span class="gtx"><b>Sin subir</b></span><span class="gval" id="pcount">…</span></div></div></section>`);
   el.querySelector('.back').onclick=()=>show('mas');
-  (async()=>{ let n=0; for(const s of SYNCST) n+=(await vivos(s)).length; const nc=el.querySelector('#ncount'); if(nc)nc.textContent=n; })();
+  (async()=>{ let n=0; for(const s of SYNCST) n+=(await vivos(s)).length; const nc=el.querySelector('#ncount'); if(nc)nc.textContent=n;
+    const p=await pendientes(); const pc=el.querySelector('#pcount'); if(pc){ pc.textContent=p.length; pc.style.color=p.length?'var(--rust)':'var(--secondary)'; pc.style.fontWeight=p.length?'700':'400'; } })();
   el.querySelector('#guardar').onclick=async()=>{ META.appsUrl=el.querySelector('#url').value.trim(); META.token=el.querySelector('#token').value.trim(); META.sheetUrl=el.querySelector('#sheet').value.trim(); await saveMeta(); toast('Ajustes guardados'); actualizarSync(); sincronizar(); };
   el.querySelector('#probar').onclick=()=>sincronizar(true);
   el.querySelector('#diag').onclick=()=>diagnostico(el.querySelector('#diagres'));
-  el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Bajando…';
-    META.ultimaBajada=0; META.ultimaSubida=0; bajadaCompletaHecha=false; await saveMeta();
-    // limpiar stores y forzar bajada completa
-    try{
-      for(const st of SYNCST){
-        if(useMem){ M(st).clear(); }
-        else { await new Promise((res)=>{ const r=txs(st,'readwrite').clear(); r.onsuccess=res; r.onerror=res; }); }
-      }
-    }catch(e){}
+  el.querySelector('#rebajar').onclick=async()=>{ const b=el.querySelector('#rebajar'); b.textContent='Recargando…';
+    // primero intenta subir lo que falte, para no perderlo
+    const p=await pendientes(); if(p.length){ await subir(); }
+    // limpiar memoria y bajar todo fresco del Sheet
+    try{ for(const st of SYNCST) M(st).clear(); }catch(e){}
     META.ultimaBajada=0; bajadaCompletaHecha=false;
     const n=await bajar();
-    if(n>0) toast(`✓ Bajados ${n} registros`);
-    else if(n===0) toast('El Sheet tiene datos pero ya los tenías todos');
-    else toast('Error: '+ultimoErrorBajada);
+    if(n>0) toast(`✓ ${n} registros de Google`);
+    else if(n===0) toast('Sin registros en Google todavía');
+    else toast('Error: '+(ultimoErrorBajada||'sin internet'));
     show('config'); };
   return el;
 };
@@ -1673,11 +1669,18 @@ setInterval(()=>{ if(!document.hidden) sincronizar(); }, 30000);
 $('#statusline').style.cursor='pointer';
 $('#statusline').onclick=()=>{ if(ultimoErrorBajada){ show('config'); toast('Revisa la conexión'); return; } toast('Sincronizando…'); sincronizar(true); };
 (async function init(){
-  try{ await openDB(); }catch(e){ useMem=true; }
-  try{ await loadMeta(); }catch(e){ META=Object.assign({},DEFAULTS); }
+  useMem=true;  // solo nube: nada se guarda en el teléfono
+  META=Object.assign({},DEFAULTS);  // config siempre por defecto (URL y token precargados)
   renderTabbar();
-  try{ show('home'); }catch(e){ useMem=true; try{ show('home'); }catch(_){ view.innerHTML='<p style="padding:24px;text-align:center;color:#8A8A8F">No se pudo cargar. Vuelve a abrir la página.</p>'; } }
-  actualizarSync(); sincronizar();
+  // pantalla de carga mientras baja todo del Sheet
+  view.innerHTML='<div style="padding:60px 24px;text-align:center;color:#8A8A8F"><div style="font-size:2rem;margin-bottom:12px">☁️</div><div>Bajando datos de Google…</div></div>';
+  // descarga COMPLETA del Sheet a memoria
+  META.ultimaBajada=0; bajadaCompletaHecha=false;
+  let n=-1;
+  try{ n=await bajar(); }catch(e){ n=-1; }
+  try{ show('home'); }catch(e){ try{ show('home'); }catch(_){ view.innerHTML='<p style="padding:24px;text-align:center;color:#8A8A8F">No se pudo cargar. Revisa tu internet y vuelve a abrir.</p>'; } }
+  if(n<0){ toast('Sin internet — abre con conexión para ver tus datos'); }
+  actualizarSync();
   if('serviceWorker' in navigator){ try{ navigator.serviceWorker.register('sw.js'); }catch(e){} }
 })();
 </script>
