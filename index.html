@@ -838,8 +838,8 @@ screens.movimientos = (filtro) => {
       const jors=todos.filter(r=>r.tipo==='Trabajador').sort((a,b)=>b.fecha.localeCompare(a.fecha));
       const lista=el.querySelector('#lista');
       const bySem={};
-      jors.forEach(r=>{ const sem=r.semana||semanaDe(r.fecha); if(!bySem[sem]) bySem[sem]={sem,regs:[],total:0}; bySem[sem].regs.push(r); bySem[sem].total+=num(r.total); });
-      const sems=Object.values(bySem).sort((a,b)=>b.regs[0].fecha.localeCompare(a.regs[0].fecha));
+      jors.forEach(r=>{ const key=lunesDe(parseFecha(r.fecha)).toISOString().slice(0,10); const sem=semanaDe(r.fecha); if(!bySem[key]) bySem[key]={key,sem,regs:[],total:0}; bySem[key].regs.push(r); bySem[key].total+=num(r.total); });
+      const sems=Object.values(bySem).sort((a,b)=>b.key.localeCompare(a.key));
       if(!sems.length){ lista.appendChild(h(`<div class="empty">${icon('doc')}<div>No hay jornales.</div></div>`)); return; }
       lista.appendChild(h(`<div class="line" style="padding:4px 4px 10px"><span class="k" style="color:var(--secondary);font-size:.86rem">${sems.length} semana(s)</span></div>`));
       const g=h('<div class="lgroup"></div>');
@@ -1222,6 +1222,7 @@ function editarInsumo(i){
 }
 
 let anaPeriodo='mes'; let anaMes=ymActual(); let anaAnio=new Date().getFullYear(); let anaVista='ambos';
+let anaInicializado=false;
 screens.analisis = () => {
   const el=h(`<section class="screen"><h1 class="ltitle">Análisis</h1>
     <div class="seg">
@@ -1237,6 +1238,13 @@ screens.analisis = () => {
   if(anaPeriodo==='anio'){ const n=h(`<div class="navsel"><button data-prev>‹</button><b>${anaAnio}</b><button data-next>›</button></div>`);
     n.querySelector('[data-prev]').onclick=()=>{ anaAnio--; show('analisis'); }; n.querySelector('[data-next]').onclick=()=>{ anaAnio++; show('analisis'); }; nav.appendChild(n); }
   (async()=>{ const cont=el.querySelector('#cont'); const regs=await vivos('registros'); const prod=await vivos('produccion'); const leche=await vivos('leche'); const hoy=hoyISO();
+    // la primera vez, si el mes actual no tiene datos, saltar al mes más reciente con movimientos
+    if(!anaInicializado){ anaInicializado=true;
+      const conMov=regs.filter(r=>r.categoria==='Ingreso'||r.categoria==='Egreso');
+      if(conMov.length && !conMov.some(r=>ymDe(r.fecha)===anaMes)){
+        const fechas=conMov.map(r=>r.fecha).filter(Boolean).sort();
+        if(fechas.length){ anaMes=ymDe(fechas[fechas.length-1]); anaAnio=Number(fechas[fechas.length-1].slice(0,4));
+          view.innerHTML=''; view.appendChild(screens.analisis()); return; } } }
     const enP=r=>{ if(!r.fecha) return false; if(anaPeriodo==='dia') return r.fecha===hoy; if(anaPeriodo==='semana') return mismaSemana(r.fecha,hoy); if(anaPeriodo==='mes') return ymDe(r.fecha)===anaMes; return r.fecha.startsWith(String(anaAnio)); };
     const filt=regs.filter(r=>(r.categoria==='Ingreso'||r.categoria==='Egreso')&&enP(r));
     if(!filt.length&&!prod.filter(enP).length&&!leche.filter(enP).length){ cont.appendChild(h(`<div class="empty">${icon('chart')}<div>Sin registros en este periodo.</div></div>`)); return; }
